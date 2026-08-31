@@ -11,19 +11,22 @@
 ```text
 Paper
   └── PaperRevision
-        └── SourceLocator
-              └── SectionUnit
-                    └── ParagraphUnit
-                          └── SentenceUnit
+        └── ReadingSourceBinding
+              └── SourceUnitRef
+
+Paper
+  └── 1 Primary GitHub Issue
 
 PaperRevision
   └── ReadingSession
-        └── ReadingCheckpoint
+        └── ReadingStep / ReadingCheckpoint
               ├── Observation
               ├── Prediction
               ├── KnowledgeGap
               └── TrainingResult
 ```
+
+其中 Source 的 Section / Paragraph / Sentence 精确身份默认由 `reading-mcp` 提供；Paper Reading Lab 保存引用，不重新建立平行分句系统。
 
 ## Paper
 
@@ -38,9 +41,20 @@ authors
 publication_year
 venue
 canonical_identifier
+primary_issue
 ```
 
-`paper_id` 应使用仓库内稳定 machine identity，不依赖目录标题显示文本。
+`paper_id` 应使用仓库内稳定 machine identity，不依赖目录标题显示文本，也不依赖 GitHub Issue number。
+
+推荐关系：
+
+```text
+1 Paper
+↕
+1 Primary GitHub Issue
+```
+
+Issue 是长期工作入口和控制面，不承担 Paper identity 本身。
 
 ## PaperRevision
 
@@ -67,6 +81,7 @@ source_url
 source_kind
 captured_or_verified_at
 content_fingerprint
+reading_source_binding
 limitations
 ```
 
@@ -74,85 +89,103 @@ limitations
 
 如果阅读过程中更换版本，应创建新 Session 或显式记录 revision change，不能静默切换。
 
-## SourceLocator
+## ReadingSourceBinding
 
-`SourceLocator` 用于定位原文，不承担解释。
+`ReadingSourceBinding` 把 `PaperRevision` 绑定到实际 Source provider。
 
-优先使用稳定定位组合：
-
-```text
-section
-page
-paragraph_index
-sentence_index
-figure/table/equation id
-```
-
-不同格式之间页码可能不同，因此 locator 允许同时保存：
+第一版首选：
 
 ```text
-published_page
-pdf_page
-section_path
-local_order
-```
-
-## SectionUnit
-
-论文自然章节单元。
-
-作用：
-
-- 导航
-- session 范围控制
-- sentence identity 的上层上下文
-
-SectionUnit 不等于知识主题。
-
-## ParagraphUnit
-
-原文段落单元。
-
-逐句阅读默认保留段落边界，因为句子的意义经常依赖同段前文。
-
-段落边界属于 Source structure 或 conversion projection，必须说明来源。
-
-## SentenceUnit
-
-`SentenceUnit` 是默认最小顺序阅读单元。
-
-建议 identity：
-
-```text
-sentence_unit_id = revision_id + section path + paragraph order + sentence order
+provider = reading-mcp
 ```
 
 建议字段：
 
 ```text
-sentence_unit_id
-revision_id
-section_id
-paragraph_index
-sentence_index
-source_locator
-source_text_ref
-segmentation_status
+provider
+reading_document_id
+normalized_document_identity
+reading_profile_version
+segmentation_version
+canonical_source
+bound_at
+limitations
 ```
 
-### SentenceUnit 不是永久语言学真理
+它回答：
 
-PDF 转文本、公式、引用、缩写和脚注都可能造成句子边界歧义。
+> 当前这个 PaperRevision 在阅读基础设施里究竟绑定到哪一个可重复定位的文档身份？
 
-因此 `segmentation_status` 至少允许：
+如果 `reading-mcp` 返回 locator / cursor stale，必须停止 precise continuation 并显式 reconcile，不能静默重新匹配。
+
+## SourceUnitRef
+
+`SourceUnitRef` 是对上游当前最小可靠 Source Unit 的引用，不是本仓库重新生成的句子对象。
+
+默认优先引用 `reading-mcp` 返回：
 
 ```text
-confirmed
-provisional
-ambiguous
+reading_document_id
+normalized_document_identity
+text_unit_id
+text_locator
+segmentation_version
+requested_kind
+actual_kind
 ```
 
-如果一个句子无法独立构成最小有用输入，可以把相邻句作为一次 reveal group，但必须保留原始顺序和边界信息。
+可以附带便于人类阅读的 display 信息：
+
+```text
+section_title
+page
+paragraph_order
+sentence_order
+native_location
+```
+
+但 display 信息不取代 precise identity。
+
+### 不自行推导 Sentence identity
+
+不再以：
+
+```text
+revision_id + section path + paragraph order + sentence order
+```
+
+生成平行的 `SentenceUnit` identity。
+
+原因：
+
+- Source conversion 可能变化
+- segmentation version 可能变化
+- 复杂 block 可能只能提供 coarse Paragraph
+- 上游已经有 stale 检测和 precise locator 契约
+
+Paper Reading Lab 的职责是引用 Source，而不是重建 Source identity。
+
+### 逐句是默认，不是伪造精度
+
+当上游可以可靠返回 Sentence 时：
+
+```text
+actual_kind = sentence
+```
+
+当 Source evidence 只能支持更粗单元时，可以是：
+
+```text
+actual_kind = paragraph
+```
+
+公式、表格、伪代码、图、列表等也允许使用对应的最小可靠 locator。
+
+原则：
+
+```text
+Source evidence > 逐句外观
+```
 
 ## ReadingSession
 
@@ -188,16 +221,31 @@ retrospective
 
 一个 Session 可以完成；一篇 Paper 不存在永久“学习完成”。
 
-## ReadingCheckpoint
+首次顺序 Session 的 `lookahead_policy` 应明确为：
 
-`ReadingCheckpoint` 是可恢复的学习状态，不是完整聊天记录。
+```text
+past-plus-current-only
+```
 
-建议记录：
+并优先通过 Source access boundary 保证，而不是只依赖 Prompt 自律。
+
+## ReadingStep
+
+`ReadingStep` 表示一次 Source reveal 及其对应的学习更新。
+
+最小 Source 引用：
 
 ```text
 session_id
-revealed_position
-current_sentence_unit_id
+step_index
+revision_id
+source_unit_ref
+revealed_at
+```
+
+Derived 可以包括：
+
+```text
 literal_meaning
 relation_to_previous
 observed_cues
@@ -205,6 +253,30 @@ current_problem_model
 new_constraints
 explicit_structure
 prediction
+actual_next_ref
+model_update
+knowledge_gaps
+```
+
+ReadingStep 不等于聊天消息。
+
+一次 AI 对话可以产生零个、一个或多个候选 Step；只有可恢复、可复用的学习状态才需要沉淀。
+
+## ReadingCheckpoint
+
+`ReadingCheckpoint` 是可恢复的 Session 状态，不是完整聊天记录。
+
+建议记录：
+
+```text
+session_id
+revision_id
+revealed_position
+current_source_unit_ref
+mode
+current_problem_model
+key_reasoning_links
+active_predictions
 knowledge_gaps
 questions_to_revisit
 next_action
@@ -216,7 +288,8 @@ next_action
 
 ```text
 revision
-position
+source binding
+revealed position
 mode
 source/derived boundary
 no-lookahead status
@@ -224,7 +297,7 @@ no-lookahead status
 
 ## Observation
 
-`Observation` 表示当前 Source 支持的可观察阅读发现。
+`Observation` 表示当前已揭示 Source 支持的可观察阅读发现。
 
 例如：
 
@@ -234,7 +307,7 @@ no-lookahead status
 这句话从 problem statement 转入 design decision。
 ```
 
-Observation 必须能指回 Source locator。
+Observation 必须能指回当前或此前已揭示的 `SourceUnitRef`。
 
 ## ExplicitReasoningStructure
 
@@ -284,15 +357,17 @@ Prediction 是在下一 Source unit 揭示以前形成的候选下一步。
 建议记录：
 
 ```text
-based_on_position
+based_on_source_unit_ref
 candidate_directions
 reasoning_basis
 confidence
-actual_next_unit
+actual_next_ref
 comparison
 ```
 
 Prediction 不进入 Source truth。
+
+如果 Prediction 在下一 Source 已经被读取以后才生成，必须标记为 retrospective，不能伪装成真正预测。
 
 ## KnowledgeGap
 
@@ -345,14 +420,40 @@ experiment question candidate
 
 正式进入其他仓库前必须经过目标仓库自己的 review / validator / gate。
 
+## GitHub Issue
+
+Primary Paper Issue 是工作流控制面。
+
+它负责串联：
+
+```text
+Paper identity reference
+Source / revision 状态
+ReadingSession summaries
+当前 blocker
+下一步 action
+```
+
+它不保存：
+
+- 完整论文全文
+- 完整逐句 transcript
+- Source truth 的替代版本
+- 所有 ReadingStep 的长文本复制
+
+Primary Issue 可以长期作为 case 入口；具体 ReadingSession 自己有 completed 状态。
+
 ## 核心身份不变量
 
 ```text
 Paper identity ≠ PaperRevision
 PaperRevision ≠ Source file path
-SentenceUnit identity ≠ 句子文本内容本身
+PaperRevision ≠ reading-mcp document identity
+SourceUnitRef ≠ 句子文本内容本身
+SourceUnitRef ≠ AI 解释
 ReadingSession identity ≠ AI conversation id
 ReadingCheckpoint ≠ transcript
+Primary Issue number ≠ Paper identity
 Prediction ≠ Source fact
 ExportCandidate ≠ validated knowledge
 ```
