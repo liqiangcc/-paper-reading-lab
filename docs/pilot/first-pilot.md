@@ -1,4 +1,4 @@
-# 首个逐句阅读 Pilot
+# 首个逐句阅读 Pilot：Raft 2014 Introduction
 
 ## 目的
 
@@ -7,138 +7,220 @@
 要证明的是：
 
 ```text
-稳定 Source
-→ 稳定 SentenceUnit
-→ no-lookahead 逐句 reveal
+稳定 PaperRevision
+→ reading-mcp 稳定 SourceUnit
+→ no-lookahead 逐项 reveal
 → AI 一层一层解释
-→ checkpoint 可恢复
-→ Prediction 先于下一句
+→ ReadingStep / checkpoint 可恢复
+→ Prediction 先于下一 SourceUnit
 → 新 Source 到来后更新判断
 → 第二遍 Recall / Reconstruction
 ```
 
 如果这条链没有跑通，不扩展论文数量。
 
-## Pilot 范围
+## 已选择论文
 
-第一轮只选择：
+首个 Pilot 绑定：
 
-```text
-1 篇论文
-×
-1 个适合的短小节
-```
+**Diego Ongaro, John Ousterhout — In Search of an Understandable Consensus Algorithm**
 
-建议控制在约：
+正式发表版本：2014 USENIX Annual Technical Conference（USENIX ATC 14）。
+
+仓库 machine identity：
 
 ```text
-10–30 个 SentenceUnit
+paper_id = raft-2014-understandable-consensus
+revision_id = raft-2014-usenix-atc14
 ```
 
-具体数量服从自然论证边界，不机械追求句数。
-
-## 论文选择标准
-
-优先选择：
-
-- 经典且长期有价值
-- 有稳定官方 / 作者 / 机构 Source
-- 版本身份清楚
-- 当前小节自然语言论证较完整
-- 公式和复杂图表不是主要障碍
-- 作者的问题 → 约束 → 设计推进比较清晰
-- 后续可以进入 `classic-papers-system-design` 或与其已有论文对应
-
-第一篇不要选择：
-
-- Source 版本关系复杂的论文
-- 大量扫描 OCR 的论文
-- 主要依赖复杂数学证明的章节
-- 当前必须跨很多页才能理解一句的材料
-
-## 候选方向
-
-为了减少 Source 和知识准备成本，优先从已有 `classic-papers-system-design` 覆盖的经典论文中选。
-
-适合的候选包括：
-
-- *MapReduce: Simplified Data Processing on Large Clusters*
-- *The Google File System*
-- *Dynamo: Amazon's Highly Available Key-value Store*
-- *In Search of an Understandable Consensus Algorithm (Raft)*
-
-首个 Pilot 不因为候选列表存在就自动绑定某篇论文；启动时仍需建立正式 `Paper` / `PaperRevision`。
-
-## Pilot Gate 0：Source
-
-开始逐句阅读前确认：
+首轮只读：
 
 ```text
-paper_id 已建立
-revision_id 已建立
-canonical source 可重复访问
-版本关系无未解释冲突
-目标小节 locator 稳定
+Section 1 — Introduction
 ```
+
+不提前进入后续 Raft design sections。
+
+## 为什么选 Raft Introduction
+
+它适合作为机制 Pilot，而不仅仅因为论文经典：
+
+- 有稳定公开的 USENIX Source
+- 论文版本身份容易明确
+- Introduction 以自然语言论证为主
+- 数学公式和复杂图表不是主要障碍
+- 作者会逐步建立 consensus 的问题背景、Paxos 的现实困难、understandability 目标以及 Raft 的设计方向
+- 很适合训练“问题 → 约束 / 痛点 → 设计目标 → 方法方向”的 reasoning structure
+- `classic-papers-system-design` 已有 Raft 主题，后续可以验证 export 边界
+
+## Source
+
+首选正式 Source：
+
+```text
+USENIX presentation page:
+https://www.usenix.org/conference/atc14/technical-sessions/presentation/ongaro
+
+USENIX paper PDF:
+https://www.usenix.org/system/files/conference/atc14/atc14-paper-ongaro.pdf
+```
+
+可以把 `raft.github.io/raft.pdf` 的 extended version 作为后续版本比较来源，但首个 no-lookahead Pilot **不混用** extended version。
+
+原因：
+
+```text
+USENIX published revision
+≠
+extended revision
+```
+
+首次 Session 必须始终绑定 `raft-2014-usenix-atc14`。
+
+## Reading provider
+
+首个 Pilot 的默认 Source Adapter：
+
+```text
+provider = reading-mcp
+```
+
+推荐真实调用链：
+
+```text
+open_document(USENIX PDF)
+        ↓
+读取 reading_profile/v1
+        ↓
+get_document_structure
+        ↓
+定位 Section 1 — Introduction
+        ↓
+get_text_units(
+  requested_kind = sentence,
+  coverage_policy = preserve_source,
+  anchored to Introduction
+)
+        ↓
+TextLocator + TextUnitCursor
+        ↓
+逐项 reveal
+```
+
+不在 Paper Reading Lab 内重新进行 PDF 分句。
+
+## Pilot Gate 0：Source binding
+
+开始逐句阅读前必须记录：
+
+```text
+paper_id
+revision_id
+canonical source
+reading_provider
+reading_document_id
+normalized_document_identity
+reading_profile_version
+segmentation_version
+Source limitations
+```
+
+并确认：
+
+- USENIX Source 可重复访问
+- 当前读取的是正式 ATC 14 revision
+- 不静默切换到 extended version
+- `Introduction` locator 稳定
 
 如果不能满足，先停在 Source workflow。
 
-## Pilot Gate 1：Segmentation
+## Pilot Gate 1：SourceUnit coverage
 
-目标小节需要形成有序 Source units：
-
-```text
-SectionUnit
-→ ParagraphUnit
-→ SentenceUnit
-```
+通过 `reading-mcp` 枚举 `Introduction` 范围内的 Source units。
 
 人工抽查：
 
-- 顺序正确
-- 没有多栏串行错误
-- 页眉页脚没有混入正文
-- 公式没有造成明显错误断句
-- 句子可重新定位到原 Source
+- canonical 顺序正确
+- 没有把页眉页脚混入正文
+- 多栏 PDF 没有串行错误
+- Sentence 边界基本可靠
+- 每个 precise unit 可以通过 `TextLocator` 重新读取
+- 如果某处只能可靠降级成 coarse Paragraph，保留 degradation，不人工制造假 Sentence
 
 不要求整个论文一次切完。
 
-## Pilot Session A：Learning
+## Pilot Gate 2：Primary Paper Issue
 
-目标：验证“逐句 + 一层一层解释”。
+创建 1 个 Primary Paper Issue，长期作为 Raft case 的操作入口。
 
-对每个新 SentenceUnit：
+Issue 至少关联：
 
 ```text
-1. 只揭示当前句
-2. 解释字面
-3. 解释与前文关系
-4. 识别新增事实 / 约束 / 问题 / 决策
-5. 更新当前问题模型
-6. 停下
+paper_id
+revision_id
+USENIX Source
+reading-mcp binding
+Pilot scope = Section 1 Introduction
+当前 phase
+Session summaries
+blockers
+next action
 ```
 
-不要每句都强制 Prediction。
+ReadingSession 不默认各自创建 Issue。
+
+## Pilot Session A：Learning
+
+目标：验证“逐项 + 一层一层解释”。
+
+对每个新 SourceUnit：
+
+```text
+1. reading-mcp 只提供当前允许 reveal 的 unit
+2. 解释字面含义
+3. 解释与已揭示前文的关系
+4. 识别新增 fact / problem / constraint / decision / evidence
+5. 更新 current problem model
+6. 形成 ReadingStep / checkpoint
+7. 停下
+```
+
+不要每一步都强制 Prediction。
 
 先确认基础阅读体验自然。
 
+### AI 的输出边界
+
+AI 不能：
+
+- 提前总结整个 Introduction
+- 用 Section 2+ 的内容解释当前句
+- 因为“知道 Raft”就把后续正式设计倒灌进当前解释
+- 把作者未写出的替代方案说成作者实际考虑过
+
+已有通用背景知识可以使用，但必须和“当前 Source 已经建立的事实”分开。
+
 ## Pilot Session B：Prediction
 
-在同一小节重新走一遍，但读取下一句前先回答：
+第二遍或适合的自然 checkpoint，在揭示下一 SourceUnit 前记录：
 
 ```text
 当前最合理的下一步问题是什么？
 有哪些候选方向？
-哪一个约束最可能推动作者继续？
+哪个已知约束最可能推动作者继续？
 ```
 
-然后揭示下一句并记录：
+然后才请求 `reading-mcp` 提供下一 unit。
+
+记录：
 
 ```text
 prediction
-actual source
-差异
-缺失的判断
+based_on_source_unit_ref
+actual_next_ref
+match / mismatch
+missing cue
 model update
 ```
 
@@ -146,105 +228,143 @@ model update
 
 ## Pilot Session C：Recall
 
-间隔后，只提供部分 cue：
-
-```text
-当前问题 / 当前约束 / 当前段落开头
-```
+间隔后，只提供部分 cue 或已读范围定位。
 
 测试能否恢复：
 
 ```text
-为什么作者走到这里？
-当前选择解决什么？
-下一步的逻辑压力是什么？
+作者当前首先在解决什么问题？
+为什么已有方法让作者认为需要新的设计？
+understandability 为什么成为一个设计目标？
+已经出现的 reasoning links 是什么？
 ```
 
-提示级别必须记录。
+如果需要提示，记录提示层级，不把提示后的回答当成 spontaneous recall。
 
 ## Pilot Session D：Reconstruction
 
-不逐句看论文，尝试重建整个小节：
+不逐句查看 Introduction，尝试重建其显式论证结构：
 
 ```text
-Problem
-→ Constraints
-→ Alternatives（如果 Source 支持）
-→ Decisions
-→ Mechanisms
-→ Consequences
-→ Evidence / Boundary
+Problem context
+→ Existing difficulty / limitation
+→ Design goal
+→ Proposed direction
+→ Claimed benefit / evidence boundary
 ```
 
-再回 Source 校正。
+只有重建完成后再回 Source 校正。
 
-## Pilot 要记录什么
+不能把后续 Section 的细节补进 Introduction reconstruction。
 
-只保存可复用 checkpoint，而不是所有聊天内容。
+## 可选 Session E：Transfer
 
-至少记录：
+Pilot 前四步跑通后，再给一个不直接提 Raft 的新系统问题，例如：
 
 ```text
-revision
-scope
-mode
-revealed_position
-关键 reasoning links
-knowledge gaps
-prediction findings
-reconstruction gaps
-no-lookahead 是否保持
+某个关键分布式机制功能正确，但工程团队普遍难以理解、实现和验证。
+应该如何把“可理解性”变成设计约束？
+```
+
+检查能否迁移出：
+
+- 分解问题
+- 减少需要同时考虑的状态
+- 明确子问题边界
+- 把可理解性作为可验证设计目标
+
+Transfer 只能称为学习迁移，不反向写成 Raft paper 的新增事实。
+
+## ReadingStep 要记录什么
+
+只保存可复用结构，不保存完整聊天 transcript。
+
+Source reference：
+
+```text
+session_id
+step_index
+revision_id
+reading_document_id
+text_unit_id
+text_locator
+segmentation_version
+revealed_at
+```
+
+Derived：
+
+```text
+literal_meaning
+relation_to_previous
+observed_cues
+current_problem_model
+new_constraints
+explicit_reasoning_links
+prediction
+actual_next_ref
+model_update
+knowledge_gaps
 ```
 
 ## Pilot 成功标准
 
 第一轮至少证明：
 
-1. 同一 SentenceUnit 可以跨会话稳定重新定位。
+1. 同一 SourceUnit 可以跨会话通过 `reading-mcp` 稳定重新定位。
 2. 首次阅读没有未来 Source 倒灌。
-3. checkpoint 足以在新会话继续。
-4. Prediction 确实发生在 reveal 前，而不是事后解释。
-5. AI 的输出能够保持“小步”，不会不断自动总结后文。
-6. 第二遍学习能明显从“看懂”转向“主动重建”。
-7. 至少发现一个具体的 reasoning gap，而不只是记录“这句不会”。
-8. Session completed 没有被错误解释成 Paper done。
+3. no-lookahead 不只是 Prompt，而是未来 unit 尚未提供给当前步骤。
+4. checkpoint 足以在新会话继续。
+5. Prediction 确实发生在 reveal 前，而不是事后解释。
+6. AI 输出能够保持“小步”，不会自动展开后续 Raft 设计。
+7. 第二遍学习能从“看懂”转向“主动重建”。
+8. 至少发现一个具体 reasoning gap，而不只是记录“这句不会”。
+9. stale locator / revision change 会 fail closed，而不是 fuzzy rebase。
+10. Session completed 没有被错误解释成 Paper done。
 
 ## Pilot 失败也要保留的 finding
 
 例如：
 
-- 句子粒度过细，破坏自然理解
+- Sentence 粒度过细，破坏自然理解
 - 每句都预测导致节奏很差
 - checkpoint 太重，维护成本高
-- no-lookahead 在工具层无法可靠保证
-- Source locator 跨格式不稳定
+- Introduction 的论证粒度更适合 reveal group
+- reading-mcp 某些 PDF unit 只能 coarse paragraph
+- no-lookahead 仍被其他上下文间接破坏
 - AI 过度解释作者意图
-- 已有背景知识和未来论文知识边界难区分
+- 已有 Raft 背景知识和当前 Source 事实边界难区分
+- Primary Issue summary 过重或过轻
 
-这些 finding 应推动修改方法论文档，而不是为了“Pilot PASS”隐藏问题。
+这些 finding 应推动修改机制，而不是为了“Pilot PASS”隐藏问题。
 
-## Pilot 后再决定什么
+## Pilot 完成后再决定什么
 
 首个 Pilot 完成后再决定：
 
-- 是否需要 Issue-driven 工作流
-- 是否需要 schema
-- 是否需要自动 Sentence segmentation
-- 是否需要 Session 存储文件格式
-- 是否需要 Validator 脚本
-- 是否需要与 `classic-papers-system-design` 自动 export
-- 是否需要支持 reading-mcp / connector 作为 Source provider
+- ReadingStep / Session artifact 的正式 schema
+- Validator 脚本
+- 是否需要自动 checkpoint writer
+- Issue Label taxonomy
+- `classic-papers-system-design` export protocol
+- 是否需要更多 Source provider
+- 是否需要学习者弱点统计
 
-先验证学习体验，再工程化。
-
-## 推荐下一步
+以下事项当前已经不再开放讨论：
 
 ```text
-从已有经典论文中选 1 篇
-→ 建立 Paper / PaperRevision
-→ 只准备一个短小节
-→ 人工确认 SentenceUnit
-→ 开始 Session A
+Issue-driven = yes，但 1 Paper → 1 Primary Issue
+reading-mcp = 首选 Source Adapter
+Source precise identity 不在 paper-reading-lab 重复实现
 ```
 
-这是本仓库完成基础文档后的第一项实际工作。
+## 下一步
+
+```text
+创建 Raft Primary Paper Issue
+→ 用 reading-mcp 打开 USENIX revision
+→ 固定 PaperRevision binding
+→ 枚举 Introduction SourceUnit
+→ 人工抽查 coverage
+→ 开始 Session A 第一条 SourceUnit
+```
