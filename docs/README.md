@@ -41,7 +41,7 @@ Paper Reading Lab 当前文档按“先边界、再领域、再 Source Adapter�
     - 人类文档默认中文，machine identity 使用稳定英文，Source 保持原文。
 
 13. [`pilot/first-pilot.md`](pilot/first-pilot.md)
-    - 当前执行入口：Kafka 2011 + `reading-mcp` 的首个真实逐句阅读 Pilot。
+    - Kafka 2011 首个逐句阅读 Pilot 的执行协议、验收标准与机制复盘基线。
 
 ## 当前权威入口
 
@@ -71,12 +71,12 @@ docs/source/source-policy.md
 docs/validation/invariants.md
 ```
 
-当前执行入口：
+当前机制执行入口：
 
 ```text
-docs/pilot/first-pilot.md
+GitHub Issue #4 — Source-First 增量解释 Profile v0.1
 +
-GitHub Issue #2 — Kafka 2011 首个逐句阅读 Pilot
+GitHub Issue #2 — Kafka 2011 acceptance fixture / Pilot evidence
 ```
 
 ## 已经确定、不再重复设计的边界
@@ -95,7 +95,7 @@ paper-reading-lab 保存 SourceUnitRef，不平行重建 Sentence identity
 
 ## 当前不应该继续扩展的内容
 
-在首个 Pilot 以前，暂时不要急着增加：
+在真实 Pilot finding 尚未证明必要前，暂时不要急着增加：
 
 - 大量 schema
 - 自建 sentence segmentation
@@ -111,9 +111,10 @@ paper-reading-lab 保存 SourceUnitRef，不平行重建 Sentence identity
 ## 下一步
 
 ```text
-Issue #2
-→ 完成 Kafka 2011 Pilot 的 fresh-conversation recovery
-→ 完成 Prediction vs Actual
-→ 执行 Recall / Reconstruction
-→ 形成 Pilot retrospective 与 closure
+Issue #4
+→ 完成 Profile v0.1 文档候选
+→ 使用 Kafka Issue #2 做 fresh-conversation acceptance
+→ 记录 acceptance finding
+→ 根据证据修订或确认 pilot-candidate
+→ 通过评审后合并
 ```
