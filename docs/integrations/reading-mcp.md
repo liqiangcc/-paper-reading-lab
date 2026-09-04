@@ -1,328 +1,372 @@
-# Reading MCP 集成契约
+# reading-mcp 集成
 
 ## 目的
 
-Paper Reading Lab 默认使用 `reading-mcp` 作为首选 Source Adapter。
+`reading-mcp` 是 Paper Reading Lab 的首选 Source Adapter。
 
-两者必须保持职责分离：
+本文件只定义：
+
+- 本仓库如何使用其 live capability；
+- 哪些 identity 必须持久化；
+- 如何执行 structure-only scope preflight、canonical reveal、exact re-read 和 original-source fidelity review；
+- stale、degradation、tool failure 与 no-lookahead 的边界。
+
+它不固定某个部署版本的 Tool 数量，也不把仓库文档当作 live runtime 的替代品。
+
+## 职责分离
 
 ```text
 reading-mcp
-= 打开来源、解析结构、提供稳定 Source Unit 与定位
+= document / structure / SourceUnit / TextLocator / source view
 
 paper-reading-lab
-= 管理 ReadingSession、学习状态、预测、复盘与训练
+= PaperRevision / Session / scope / learning / checkpoint
 ```
 
-本仓库不重新实现 PDF / EPUB / HTML / DOCX 解析，不重新建立与 `reading-mcp` 冲突的句子 identity。
+`reading-mcp` 返回的 document identity 不替代本仓库的 `paper_id` / `revision_id`。
 
-## 为什么使用 reading-mcp
+## Capability reality
 
-Paper Reading Lab 的核心要求包括：
-
-- Source-first
-- 逐句或最小可靠 Source Unit 阅读
-- canonical 正文顺序
-- 可恢复定位
-- no-lookahead
-- Source 变化后显式失效，而不是模糊重定位
-
-`reading-mcp` 已经提供：
+仓库文档中的接口描述只是 contract 期望。每个 fresh conversation 在真正执行前仍应确认当前 MCP capability 能实际调用。
 
 ```text
-open_document
-get_document_structure
-get_text_units
-get_context
-read_document
+tool schema / release note / old conversation memory
+≠ current successful invocation
 ```
 
-逐句读取时推荐：
+若必需 Tool 不可调用：
 
 ```text
-open_document
-    ↓
-读取 reading_profile/v1
-    ↓
-get_document_structure
-    ↓
-get_text_units(
-  requested_kind = sentence,
-  coverage_policy = preserve_source
-)
-    ↓
-TextLocator + TextUnitCursor
-    ↓
-read_document / get_context
+persist blocker / handoff
+→ do not infer Source from memory
+→ STOP
 ```
 
-`body-order/v1` 负责正文 canonical 顺序；不能把结构树 preorder 自动当成正文阅读顺序。
+## Source binding
 
-## Source Unit 所有权
-
-### reading-mcp 拥有
-
-以下内容属于 Source / segmentation 基础设施：
-
-- document identity
-- normalized document identity
-- Section 结构
-- Paragraph / Sentence TextUnit
-- TextLocator
-- TextUnitCursor
-- segmentation version
-- source-preserving degradation
-- stale locator / stale cursor 判定
-- page / section / native location 等可追溯位置
-
-### paper-reading-lab 拥有
-
-以下内容属于学习领域：
-
-- Paper
-- PaperRevision 与 reading-mcp document binding
-- Primary Paper Issue
-- ReadingSession
-- ReadingStep / ReadingCheckpoint
-- revealed position
-- mode
-- observed cues
-- current problem model
-- constraints
-- prediction
-- actual-next comparison
-- model update
-- knowledge gap
-- Recall / Reconstruction / Transfer result
-
-## 不重新制造 Sentence identity
-
-本仓库不再使用：
-
-```text
-revision_id + section path + paragraph order + sentence order
-```
-
-自行推导一个平行 `SentenceUnit` identity。
-
-优先保存上游已经返回的稳定引用：
-
-```text
-reading_document_id
-normalized_document_identity
-text_unit_id
-text_locator
-segmentation_version
-```
-
-Paper Reading Lab 可以保存便于人阅读的：
-
-```text
-section title
-page
-paragraph order
-sentence order
-```
-
-但这些只是 display/navigation 信息，不取代上游 precise identity。
-
-## PaperRevision 与 reading-mcp 的绑定
-
-一个 `PaperRevision` 应显式记录当前 Source binding：
+正式 ReadingSession 开始前至少记录：
 
 ```text
 paper_id
 revision_id
-source_kind
-canonical_source
-reading_provider = reading-mcp
+provider = reading-mcp
 reading_document_id
-normalized_document_identity
-reading_profile_version
-limitations
+content_hash
+normalized_document_hash
+normalization_version（如返回）
+reading_profile_version（如返回）
+segmentation_version
+media_type
+source location / provenance
+known limitations
 ```
 
-一个 ReadingSession 必须绑定一个明确 `PaperRevision`。
+### Identity 层次
 
-如果 `reading-mcp` 因来源或 normalized identity 变化返回 stale：
+```text
+PaperRevision
+→ 出版 / 版本身份
+
+reading_document_id
+→ provider 中的文档身份
+
+content_hash
+→ 原始或绑定内容身份
+
+normalized_document_hash
+→ 当前 normalized projection 身份
+
+segmentation_version
+→ 当前 SourceUnit 边界规则身份
+```
+
+旧 Session 必须继续绑定其原 identity。新 normalization 或 segmentation 不能静默重写历史 checkpoint。
+
+## 打开 Source
+
+典型流程：
+
+```text
+approved source location
+→ open_document
+→ verify returned identity
+→ compare with expected PaperRevision
+→ persist ReadingSourceBinding
+```
+
+只有以下条件满足时才进入 `reading-ready`：
+
+- PaperRevision identity 已确认；
+- Source 可重复访问；
+- 当前 scope 的 structure / order 可恢复；
+- locator 可以精确回读；
+- 已知 limitation durable；
+- no-lookahead reveal 可执行。
+
+## Structure-only named-section preflight
+
+严格 section-bounded Session 在正文 reveal 前需要知道：
+
+```text
+allowed named section
++
+next sibling / stop boundary
+```
+
+优先使用 `get_document_structure` 的 canonical named hierarchy，要求返回：
+
+- section id；
+- title；
+- parent / sibling relation；
+- source order / body order；
+- source location metadata；
+- 不返回正文内容。
+
+典型 gate：
+
+```text
+resolve section://1-introduction
+→ resolve next sibling section://2-...
+→ persist current_scope_boundary
+→ only then reveal first allowed SourceUnit
+```
+
+不得使用会返回未来正文 snippet 的全文 lexical search 作为 clean no-lookahead boundary preflight。
+
+如果 named structure 不可用且没有预验证 boundary artifact：
+
+```text
+planned section scope
+→ cannot become executable boundary safely
+→ fail closed / block Session start
+```
+
+## Canonical sequential reveal
+
+普通 sentence-first ReadingStep 默认：
+
+```text
+get_text_units(
+  document_id,
+  section_id,
+  requested_kind = sentence,
+  direction = forward,
+  coverage_policy = preserve_source,
+  max_items = 1,
+  anchor_locator = latest precise locator
+)
+```
+
+### `coverage_policy = preserve_source`
+
+用于保留 provider 的真实边界和 degradation：
+
+- Sentence 可用时返回 Sentence；
+- 只能可靠提供 Paragraph 时保留 Paragraph；
+- structural / caption / code / unknown classification 不被本仓库伪造为正文 Sentence。
+
+### Exactly-one 的语义
+
+`max_items = 1` 限制 canonical unit 数量，不保证该 unit 只有一个表面句号。一个 provider-defined SentenceUnit 可能因当前 segmentation 包含多个 surface sentences；本仓库必须保留 actual unit identity，并把它作为 finding，而不是私自拆成新 identity。
+
+若当前单元是 structural / non-prose：
+
+- 仍记录当前 canonical unit；
+- 是否继续到下一单元取决于 Session scope / durable next_action；
+- 不得为了找到“更有内容”的正文一次批量读取后文。
+
+## Precise exact re-read
+
+对允许 reveal 的 SourceUnit，使用：
+
+```text
+read_document(
+  document_id,
+  target_locator
+)
+```
+
+只传当前 document identity 和 exact target locator；不通过旧 snippet 做相似搜索。
+
+成功条件：
+
+- returned locator identity 与目标一致；
+- returned content 对应当前 allowed unit；
+- 没有 fuzzy rebase；
+- 没有额外 reveal 第二个 unit。
+
+## Stale 与 fail closed
+
+当 provider 返回：
 
 ```text
 STALE_LOCATOR
-或
 STALE_CURSOR
+identity mismatch
 ```
 
-Paper Reading Lab 必须停止当前 precise continuation，并显式执行 revision / locator reconcile。
+必须：
+
+```text
+STOP precise continuation
+→ preserve old checkpoint
+→ record current provider identity
+→ decide explicit migration / new Session
+```
 
 禁止：
 
 ```text
-复制旧句子文本
-→ 搜索相似文本
-→ 自动猜测“应该还是这句话”
-→ 静默继续旧 Session
+old snippet
+→ search_document
+→ choose most similar result
+→ silently continue old Session
 ```
 
-## no-lookahead 的工具层实现
+## `search_document` 边界
 
-首次顺序阅读不能先把整个小节读入 AI，再靠 Prompt 要求“假装不知道后文”。
+全文搜索会返回匹配内容，因此在 clean first-pass Session 中可能泄露未来 Source。
 
-推荐真实访问模型：
+允许场景包括：
+
+- 已显式进入 retrospective / open-source mode；
+- 当前 KnowledgeGap 调查允许离开顺序阅读，并记录 contamination / mode change；
+- 搜索范围本身已经全部 reveal；
+- 非正文 metadata 调查且 Tool contract 保证不返回未来正文。
+
+不能用于：
+
+- 预测下一句；
+- named-section no-lookahead preflight；
+- stale locator fuzzy recovery；
+- 绕过 scope gate。
+
+## Original source view
+
+当当前已允许 Source 涉及：
+
+- Figure；
+- Table；
+- Equation；
+- Algorithm；
+- 多栏排版；
+- 脚注 / 页眉 / 图注归属；
+- parser fidelity ambiguity；
+
+可以使用：
 
 ```text
-ReadingSession.revealed_position = N
-        ↓
-reading-mcp 只提供当前允许的 Source Unit
-        ↓
-AI + 学习者解释 / 预测
-        ↓
-保存 ReadingStep
-        ↓
-显式 next
-        ↓
-cursor 前进到 N+1
+get_source_view(
+  document_id,
+  target_locator,
+  representation = original
+)
 ```
 
-核心原则：
+期望行为：
 
-> Future Source should not be supplied before reveal.
+- locator 与 current normalized identity 精确绑定；
+- 返回 original source page 的视觉表示和 audit metadata；
+- 不使用 OCR 或生成式重建替代原页；
+- stale 时 fail closed；
+- 不 fuzzy rebase。
 
-Prompt-level no-lookahead 是补充约束，不替代 Source access boundary。
+### 视觉边界
 
-## 最小可靠 Source Unit
-
-“逐句”是默认体验，不是强制伪造句子的要求。
-
-当 `reading-mcp` 只有 coarse Paragraph 级证据，或 Source 是：
-
-- blockquote
-- list item
-- preformatted
-- table
-- equation
-- figure
-- pseudocode
-
-应接受上游 source-preserving degradation，并使用当前最小可靠 Source Unit。
-
-禁止为了维持“每一步必须是一句话”的外观而人工伪造精确定位。
-
-## ReadingStep 建议引用
-
-一个 ReadingStep 最小建议保存：
+必须区分：
 
 ```text
-session_id
-step_index
-revision_id
-reading_document_id
-text_unit_id
-text_locator
-segmentation_version
-revealed_at
-mode
+Text Source Fact
+vs
+Original-page visual observation
+vs
+AI visual interpretation
 ```
 
-以及 Derived：
+看到整页只授权检查当前允许对象；页面上尚未 canonical reveal 的未来正文不能进入 clean first-pass explanation / prediction。
+
+## Context 工具边界
+
+`get_context` 可以用于显式请求的邻居、容器或结构上下文，但其调用必须受 Session mode、scope 和 no-lookahead 约束。
+
+默认 ReadingStep 不因为“上下文可能有帮助”而读取未来 neighbor。容器 / structural context 只有在 Tool contract 不返回越界正文且 current scope 允许时使用。
+
+## Source fidelity 与 segmentation finding
+
+需要分别记录：
 
 ```text
-literal_meaning
-relation_to_previous
-observed_cues
-current_problem_model
-new_constraints
-prediction
-actual_next_ref
-model_update
-knowledge_gaps
+Raw source fidelity
+Normalized text fidelity
+Canonical order
+SourceUnit boundary quality
+Content classification
+Visual fidelity
 ```
 
-Source 引用与 Derived 学习记录必须可以分开审计。
+一个 prose locator exact re-read 成功，不代表：
 
-## 上下文读取规则
+- 整篇双栏顺序全部正确；
+- Figure / Table 已被文本完整表达；
+- 所有 sentence boundary 都正确；
+- future page / section ownership 已被验证。
 
-`get_context` 可以帮助理解当前句的允许前文，但首次 no-lookahead Session 必须限制在已经 revealed 的范围内。
+finding 应绑定具体 document identity、locator、scope 和 provider version。
 
-不能为了方便直接请求包含未来正文的大窗口。
+## Tool failure 与 retry
 
-如果某一句必须依赖标题、当前段落已揭示前文、图表或前置定义才能理解，可以扩大到这些已授权上下文，但要在 checkpoint 中记录原因。
+安全 retry 只允许在以下条件下进行：
 
-## Search 的边界
+- 不改变 Source scope；
+- 不获取第二个 SourceUnit；
+- 不更换 Revision / normalized identity；
+- 不使用 Web / model memory 代替；
+- retry 结果可审计。
 
-`search_document` 用于：
-
-- Source 定位
-- retrospective audit
-- Knowledge gap 的显式补充任务
-
-首次顺序阅读过程中，不能用全文 Search 搜索未来内容来帮助当前预测。
-
-Search 命中也不能取代 canonical sequential reveal。
-
-## 故障与降级
-
-以下情况必须 fail closed 或显式降级：
-
-- locator stale
-- cursor stale
-- revision identity 变化
-- 句子覆盖不完整
-- PDF 多栏解析错误
-- 公式 / 图表缺失导致当前论证不可可靠理解
-- Source 只能得到 coarse unit
-
-允许：
+若 invocation path、serialization 或 binding 异常无法安全确认：
 
 ```text
-sentence → coarse paragraph
+persist blocker
+→ keep current revealed_position
+→ STOP
 ```
 
-不允许：
+后续 fresh invocation 成功不能删除此前 transient finding，只能追加复现结论。
+
+## 典型 source-first action
 
 ```text
-不可靠 source → AI 猜测补全
+recover durable Session state
+→ verify current reading-mcp capability
+→ verify PaperRevision / document identity
+→ scope gate
+→ get_text_units(max_items=1)
+→ exact read_document(locator)
+→ optional get_source_view(current locator)
+→ explain current unit
+→ persist locator / stop boundary when required
+→ STOP
 ```
 
-## 与 GitHub 的关系
+## 本仓库不做的事情
 
-GitHub 是控制面和长期可审计记录，不是 Source parser。
-
-推荐：
-
-```text
-1 Paper
-↕
-1 Primary GitHub Issue
-
-1 Paper
-↕
-N ReadingSessions
-
-1 ReadingSession
-↕
-N ReadingSteps / checkpoints
-```
-
-Issue 记录：
-
-- Paper identity
-- Source / revision 状态
-- 当前阅读目标
-- Session links / summaries
-- blockers
-- actions
-
-不要把完整逐句 transcript 全部塞进 Issue。
+- 自建 PDF parser；
+- 自建与 provider 平行的 section / sentence identity；
+- 把 OCR / AI 重建内容标记为 original Source；
+- 通过全文搜索偷看未来正文；
+- 在 stale 后自动迁移旧 Session；
+- 仅凭 tools/list 文字就声称能力已验证；
+- 把 current runtime Tool 数量写成长期领域真相。
 
 ## 核心不变量
 
 ```text
-reading-mcp 提供 Source identity；paper-reading-lab 不重复制造。
-TextLocator 是引用，不是 AI 解释。
-首次阅读的未来 Source 不提前提供。
-stale 必须显式处理，不 fuzzy rebase。
-逐句优先，但 Source evidence 优先于逐句外观。
-Search 不得绕过 sequential reveal。
-GitHub Issue 是控制面，不是 Source truth。
-ReadingSession 保存学习状态，不修改上游 Source。
+PaperRevision 与 provider document identity 显式绑定。
+Named-section scope 优先通过 structure-only preflight 建立。
+Future Source 不为 boundary discovery 提前泄露。
+Canonical unit identity 优先于本地表面句号判断。
+Exact locator re-read 优先于 snippet search。
+Stale / identity conflict fail closed。
+Original source view 补充视觉 fidelity，不扩大 no-lookahead 范围。
+Current capability 以实际 invocation 为准。
 ```
