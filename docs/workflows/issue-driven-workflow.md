@@ -92,16 +92,80 @@ Issue 应保持为可操作摘要。
 session_id
 revision_id
 mode
-scope
+planned_scope
+current_scope_boundary
 revealed range
 关键 reasoning findings
 knowledge gaps
 prediction / reconstruction finding
 next action
-artifact reference
+operational checkpoint reference
+learning artifact reference
 ```
 
-summary 不应替代正式 Session artifact。
+summary 不应替代 Operational Recovery Checkpoint，也不应替代 ReadingSession Learning Artifact。
+
+## Operational Recovery Checkpoint
+
+这是 control plane 的**续作状态**：目标是让 fresh conversation 不依赖旧聊天就能安全继续。
+
+至少需要能够恢复：
+
+```text
+paper_id
+revision_id
+reading_document_id
+content / normalized identity
+segmentation_version
+current phase / mode
+planned_scope
+current_scope_boundary
+revealed position
+latest precise TextLocator
+immutable prediction reference（如存在）
+blocker / finding
+exactly one next action
+```
+
+特别地，`current_scope_boundary` 必须在下一次 canonical reveal **之前**被检查。若 next unit 越界，worker 必须 STOP；不能因为 Primary Issue body 仍写着旧目标或用户继续说“下一句”就自动扩展。
+
+scope 扩展必须先留下 durable amendment：
+
+```text
+old_scope
+new_scope
+reason
+amendment_point
+```
+
+原 `planned_scope` 作为历史事实保留。
+
+## ReadingSession Learning Artifact
+
+这是学习层的**可恢复认知摘要**：目标是支持 Recall / Reconstruction / retrospective，而不是驱动 Source reveal。
+
+第一版至少覆盖语义：
+
+```text
+session identity / mode / scope
+revealed range
+explicit reasoning links
+current problem model / latest model update
+knowledge gaps
+reasoning gaps
+cue level / cue recovery result
+prediction comparison finding（如存在）
+reconstruction finding（如存在）
+```
+
+它应明显小于完整 transcript。Primary Issue 只保存 session summary / references，不演变成 learning database。
+
+因此 fresh recovery 与 later recall 使用不同 durable information：
+
+```text
+继续操作 → Operational Recovery Checkpoint
+主动恢复 / 重建 → ReadingSession Learning Artifact
+```
 
 ## 生命周期
 
@@ -183,7 +247,8 @@ Reading finding
 - limitations
 
 # 当前目标
-- target section
+- planned_scope
+- current_scope_boundary
 - current phase
 
 # Reading Sessions
@@ -204,7 +269,11 @@ Reading finding
 Issue number ≠ Paper identity。
 ReadingSession 不默认创建独立 Issue。
 Issue 是控制面，不是 Source truth。
-Issue summary ≠ Session artifact。
+planned_scope 是 durable history；current_scope_boundary 是 executable reveal gate。
+跨 scope 默认 STOP；scope amendment 必须先 durable、后 reveal。
+Operational Recovery Checkpoint ≠ ReadingSession Learning Artifact。
+Issue summary ≠ Operational Recovery Checkpoint ≠ ReadingSession Learning Artifact。
 Label 是投影，不是领域状态根。
+Session completed ≠ Paper done。
 Paper Issue 的关闭不等于 Paper 学习完成。
 ```

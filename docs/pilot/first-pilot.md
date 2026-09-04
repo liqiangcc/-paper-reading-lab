@@ -259,6 +259,42 @@ Source acquisition
 
 在当前范围完成前，不提前读取 Section 2+ 来帮助解释或预测。
 
+### ReadingSession scope boundary gate
+
+首个真实 Pilot 已经证明：仅在文档里写“阅读范围”不足以阻止连续 `下一句` 跨界。因此 ReadingSession 开始前必须把范围变成可恢复、可执行的 durable state：
+
+```text
+planned_scope
+current_scope_boundary
+```
+
+对每一次新的 canonical SourceUnit reveal，都必须先做 boundary check：
+
+```text
+current locator
+→ determine next canonical unit ownership / boundary
+→ next unit still inside current_scope_boundary?
+   ├─ yes → allow exactly-one reveal
+   └─ no  → STOP before future正文 is revealed
+             ↓
+          durable scope amendment
+             ↓
+          then continue
+```
+
+默认是 fail closed。不能因为用户持续说“下一句”、换了 conversation，或当前阅读很顺畅，就自动把 planned scope 扩大。
+
+确实需要扩大范围时，必须先持久化 amendment：
+
+```text
+old_scope
+new_scope
+reason
+amendment_point
+```
+
+amendment 只改变后续允许范围，不改写原 `planned_scope` 历史。
+
 ## Pilot Gate 2：Primary Paper Issue
 
 Kafka 的 Primary Paper Issue 是：
@@ -274,9 +310,10 @@ paper_id
 revision_id
 Source acquisition
 reading-mcp binding
-当前阅读 scope
+planned_scope
+current_scope_boundary
 当前 phase
-Session summaries
+Session summaries / artifact references
 blockers
 knowledge gaps
 next action
@@ -406,6 +443,66 @@ Problem context
 
 Transfer 只能称为学习迁移，不反写成 Kafka 论文新增事实。
 
+## Operational checkpoint 与 Learning Artifact
+
+首个真实 Pilot 证明两类 durable state 的目标不同，不能继续混成一个 `checkpoint`：
+
+### Operational Recovery Checkpoint
+
+目标是让 fresh conversation **安全继续操作**，不依赖旧聊天上下文。第一版至少表达：
+
+```text
+paper_id
+revision_id
+reading_document_id
+content / normalized identity
+segmentation_version
+current phase / mode
+planned_scope
+current_scope_boundary
+revealed position
+latest precise TextLocator
+immutable prediction reference（如存在）
+blocker / finding
+exactly one next action
+```
+
+它回答的是：
+
+```text
+当前绑定哪一个 Source？
+允许读到哪里？
+已经 reveal 到哪里？
+下一步唯一允许做什么？
+```
+
+### ReadingSession Learning Artifact
+
+目标是支持后续 Recall / Reconstruction / retrospective，而不是只回答“从哪里继续”。第一版先约定最小语义信息，不在本 Pilot 固化正式机器 schema：
+
+```text
+session identity / mode / scope
+revealed range
+explicit reasoning links
+current problem model / latest model update
+knowledge gaps
+reasoning gaps
+cue level / cue recovery result
+prediction comparison finding（如存在）
+reconstruction finding（如存在）
+```
+
+它应明显小于完整 transcript。Primary Issue 只保留可操作 summary 和 artifact reference，不承担完整 learning state 数据库职责。
+
+因此：
+
+```text
+Operational Recovery Checkpoint
+≠ ReadingSession Learning Artifact
+≠ Primary Issue summary
+≠ full transcript
+```
+
 ## ReadingStep 要记录什么
 
 只保存可复用结构，不保存完整聊天 transcript。
@@ -453,7 +550,9 @@ knowledge_gaps
 9. 至少发现一个具体 reasoning gap，而不只是记录“这句不会”。
 10. 双栏 PDF 的顺序风险被真实验证，而不是被假定正确。
 11. stale locator / revision change 会 fail closed，而不是 fuzzy rebase。
-12. Session completed 没有被错误解释成 Paper done。
+12. planned scope 会在 reveal 前被执行为 boundary gate，跨界默认 STOP。
+13. fresh recovery 所需 checkpoint 与 Recall / Reconstruction 所需 learning artifact 被明确区分。
+14. Session completed 没有被错误解释成 Paper done。
 
 ## Pilot 失败也要保留的 finding
 

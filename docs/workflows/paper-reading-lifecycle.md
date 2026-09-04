@@ -140,13 +140,16 @@ abandoned
 
 ### planned
 
-已经定义：
+已经定义并持久化：
 
 - revision
-- scope
+- `planned_scope`
+- `current_scope_boundary`
 - mode
 - lookahead policy
 - learning goal
+
+`planned_scope` 是 Session 创建时的历史事实；`current_scope_boundary` 是当前真正可执行的 reveal 边界。两者初始通常一致，但后者只有经过 durable scope amendment 才能扩大。
 
 ### active
 
@@ -156,13 +159,87 @@ abandoned
 
 ```text
 revealed_position
+latest precise TextLocator
+current_scope_boundary
 ```
+
+每次 reveal **之前**必须执行 boundary check：
+
+```text
+next canonical unit inside current_scope_boundary?
+├─ yes → continue
+└─ no  → STOP before reveal
+          ↓
+       durable scope amendment required
+```
+
+不能先 reveal 越界正文，再事后补 scope。
+
+### Scope amendment
+
+确实需要扩大 Session 范围时，先持久化：
+
+```text
+old_scope
+new_scope
+reason
+amendment_point
+```
+
+然后才更新 `current_scope_boundary` 并继续。原 `planned_scope` 不得被覆盖，因此审计时始终能够区分“原计划”与“后来扩展”。
 
 ### paused
 
-当前 Session 暂停，但 checkpoint 足以恢复。
+当前 Session 暂停，但 Operational Recovery Checkpoint 足以恢复**操作位置和安全边界**。
 
-恢复时不得因为换了 AI conversation 就自动读取未来内容。
+恢复时不得因为换了 AI conversation 就自动读取未来内容，也不得仅凭旧聊天记忆扩大 scope。
+
+### Operational Recovery Checkpoint
+
+checkpoint 的职责是跨 conversation 安全续作，至少需要表达：
+
+```text
+paper_id
+revision_id
+reading_document_id
+content / normalized identity
+segmentation_version
+current phase / mode
+planned_scope
+current_scope_boundary
+revealed position
+latest precise TextLocator
+immutable prediction reference（如存在）
+blocker / finding
+exactly one next action
+```
+
+它不承担完整学习状态。
+
+### ReadingSession Learning Artifact
+
+Learning Artifact 的职责是支持 Recall / Reconstruction / retrospective，至少保留如下语义信息：
+
+```text
+session identity / mode / scope
+revealed range
+explicit reasoning links
+current problem model / latest model update
+knowledge gaps
+reasoning gaps
+cue level / cue recovery result
+prediction comparison finding（如存在）
+reconstruction finding（如存在）
+```
+
+第一版只定义语义，不在这里规定正式 JSON Schema。Artifact 应明显小于完整 transcript。
+
+因此：
+
+```text
+Operational Recovery Checkpoint
+≠ ReadingSession Learning Artifact
+```
 
 ### completed
 
@@ -291,10 +368,13 @@ explicit review
 选择一篇经典论文
 → 验证 PaperRevision
 → 只切一个小节
+→ persist planned_scope + current_scope_boundary
 → segmentation review
 → reading-ready
+→ reveal 前执行 scope boundary check
 → Learning Session 逐句完成小节
-→ 保存 checkpoint
+→ 保存 Operational Recovery Checkpoint
+→ 保存最小 Learning Artifact
 → 新会话恢复一次
 → Prediction / Recall 再走一遍
 → 小节 Reconstruction
@@ -309,6 +389,9 @@ explicit review
 Source status 与 Session status 分离。
 source-ready 不等于 reading-ready。
 reading-ready 不等于学完。
+planned_scope 必须持久化，current_scope_boundary 必须可执行。
+跨 current_scope_boundary 的 reveal 默认 STOP，必须先 durable scope amendment。
+Operational Recovery Checkpoint ≠ ReadingSession Learning Artifact。
 Session completed 不等于 Paper done。
 旧 Session 永远绑定旧 Revision。
 lookahead contamination 必须显式记录。
