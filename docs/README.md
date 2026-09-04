@@ -17,28 +17,31 @@ Paper Reading Lab 当前文档按“先边界、再领域、再 Source Adapter�
    - 定义 `reading-mcp` 作为首选 Source Adapter 的身份、定位、stale、no-lookahead 和降级边界。
 
 5. [`learning/source-first-sentence-reading.md`](learning/source-first-sentence-reading.md)
-   - 定义逐句优先、累积上下文、no-lookahead 和一层一层解释的核心学习协议。
+   - 定义逐句优先、累积上下文、no-lookahead 和一层一层解释的核心学习协议；回答“允许读取什么、何时允许读取”。
 
-6. [`learning/reading-sessions.md`](learning/reading-sessions.md)
-   - 定义 Learning、Prediction、Recall、Reconstruction、Transfer、Retrospective 等 Session 模式和 checkpoint。
+6. [`learning/incremental-explanation-profile.md`](learning/incremental-explanation-profile.md)
+   - 定义取得当前 SourceUnit 后的版本化解释与呈现 Profile，包括 MUST / SHOULD / MAY、L0 / L1 / L2 自适应深度、Source / Derived / Unknown 边界和跨会话恢复。
 
-7. [`workflows/issue-driven-workflow.md`](workflows/issue-driven-workflow.md)
+7. [`learning/reading-sessions.md`](learning/reading-sessions.md)
+   - 定义 Learning、Prediction、Recall、Reconstruction、Transfer、Retrospective 等 Session 模式、checkpoint 和 Explanation Profile binding。
+
+8. [`workflows/issue-driven-workflow.md`](workflows/issue-driven-workflow.md)
    - 定义 `1 Paper → 1 Primary GitHub Issue`，以及 Issue 作为控制面而非 Source truth 的边界。
 
-8. [`workflows/paper-reading-lifecycle.md`](workflows/paper-reading-lifecycle.md)
+9. [`workflows/paper-reading-lifecycle.md`](workflows/paper-reading-lifecycle.md)
    - 分离 Source 生命周期和 ReadingSession 生命周期，并明确 Paper 不存在永久 `done`。
 
-9. [`source/source-policy.md`](source/source-policy.md)
+10. [`source/source-policy.md`](source/source-policy.md)
    - 定义论文版本、来源定位、转换文本、OCR 和公开仓库版权边界。
 
-10. [`validation/invariants.md`](validation/invariants.md)
+11. [`validation/invariants.md`](validation/invariants.md)
     - 定义后续 Validator 要保护的关键不变量。
 
-11. [`conventions/language.md`](conventions/language.md)
+12. [`conventions/language.md`](conventions/language.md)
     - 人类文档默认中文，machine identity 使用稳定英文，Source 保持原文。
 
-12. [`pilot/first-pilot.md`](pilot/first-pilot.md)
-    - 当前执行入口：Raft 2014 USENIX `Introduction` + `reading-mcp` 的首个真实逐句阅读 Pilot。
+13. [`pilot/first-pilot.md`](pilot/first-pilot.md)
+    - 当前执行入口：Kafka 2011 + `reading-mcp` 的首个真实逐句阅读 Pilot。
 
 ## 当前权威入口
 
@@ -54,6 +57,8 @@ docs/domain/model.md
 docs/integrations/reading-mcp.md
 +
 docs/learning/source-first-sentence-reading.md
++
+docs/learning/incremental-explanation-profile.md
 +
 docs/learning/reading-sessions.md
 +
@@ -71,7 +76,7 @@ docs/validation/invariants.md
 ```text
 docs/pilot/first-pilot.md
 +
-GitHub Issue #1 — Raft 2014 Introduction 逐句阅读 Pilot
+GitHub Issue #2 — Kafka 2011 首个逐句阅读 Pilot
 ```
 
 ## 已经确定、不再重复设计的边界
@@ -106,10 +111,9 @@ paper-reading-lab 保存 SourceUnitRef，不平行重建 Sentence identity
 ## 下一步
 
 ```text
-Issue #1
-→ reading-mcp 打开 Raft USENIX PDF
-→ 固定 PaperRevision binding
-→ 枚举 Section 1 Introduction SourceUnit
-→ coverage 抽查
-→ Session A 第一条 SourceUnit
+Issue #2
+→ 完成 Kafka 2011 Pilot 的 fresh-conversation recovery
+→ 完成 Prediction vs Actual
+→ 执行 Recall / Reconstruction
+→ 形成 Pilot retrospective 与 closure
 ```
