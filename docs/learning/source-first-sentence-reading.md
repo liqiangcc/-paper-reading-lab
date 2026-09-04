@@ -2,17 +2,66 @@
 
 ## 目的
 
-本协议用于训练“跟着论文原文一步一步建立问题模型”的能力，而不是在知道全文结论后做事后总结。
+本协议用于训练：
 
-默认粒度是：
+> 跟着论文原文，在有限信息下逐步建立、检验和修正问题模型。
+
+它不是知道全文结论后的事后总结，也不是用百科知识替代当前论文阅读。
+
+默认粒度：
 
 ```text
 一篇论文
-→ 一个小节
-→ 一个段落
-→ 一个 SentenceUnit
+→ 一个有界 ReadingSession
+→ 一个 named section / paragraph range / sentence range
+→ 一个 canonical SourceUnit
 → 一次只推进一个解释层
 ```
+
+## 与其他文档的关系
+
+```text
+本协议
+→ 决定允许读取什么、何时允许读取
+
+incremental-explanation-profile.md
+→ 决定取得当前 SourceUnit 后怎样解释和呈现
+
+reading-sessions.md
+→ 决定 Session mode、scope、checkpoint 和 learning artifact
+
+reading-mcp.md
+→ 决定 canonical structure / SourceUnit / TextLocator / source view
+```
+
+Explanation Profile 不能扩大本协议规定的 Source 可见范围。
+
+## 前置 Gate
+
+任何正文 reveal 前必须已经具备：
+
+```text
+stable PaperRevision
++
+reading-mcp Source binding
++
+Session mode / lookahead policy
++
+planned_scope
++
+current_scope_boundary
+```
+
+每次新 canonical reveal 前都要检查：
+
+```text
+next unit inside current_scope_boundary?
+├── yes → reveal allowed
+└── no  → STOP before reveal
+          → durable scope amendment required
+```
+
+不得先读越界正文，再事后补 scope。
 
 ## 核心规则：禁止未来上下文倒灌
 
@@ -32,25 +81,19 @@ Session 明确允许的既有背景知识
 SourceUnit N+1..end
 ```
 
-包括禁止：
+包括：
 
-- 用后文结论解释作者“此时一定在想什么”
-- 因为知道最终机制而强化当前句意图
-- 提前透露下一问、下一设计或下一实验结果
-- 用全文摘要给当前预测打分
+- 用后文结论解释作者“此时一定在想什么”；
+- 因为知道最终机制而强化当前句意图；
+- 提前透露下一问题、设计或实验结果；
+- 用全文摘要给当前 prediction 打分；
+- 用下游分析资产补当前 Source；
+- 用 Web 或模型记忆绕过 bound Source provider；
+- 用整页视觉中尚未 canonical reveal 的未来正文帮助当前解释。
 
 ## 为什么必须 no-lookahead
 
-真实研究和设计过程是增量的。
-
-如果阅读者总是先看到结论，再回头解释前文，容易得到：
-
-```text
-结局已知
-→ 前文看起来理所当然
-```
-
-而训练目标是：
+真实研究与系统设计是增量的：
 
 ```text
 有限信息
@@ -60,27 +103,100 @@ SourceUnit N+1..end
 → 更新模型
 ```
 
-这更接近真正解决未知问题时的状态。
+若先看到结论再回看前文，很容易产生：
 
-## 一个句子的默认拆解顺序
+```text
+结局已知
+→ 前文看起来理所当然
+```
 
-对当前 SentenceUnit，不一次把所有内容讲完。
+这会隐藏当时存在的 alternatives、uncertainty 和 reasoning gap。
 
-建议逐层推进：
+## Canonical SourceUnit
 
-### 第 1 层：字面含义
+默认由 `reading-mcp.get_text_units` 按 provider canonical order 返回。
+
+普通 sentence-first Step 通常使用：
+
+```text
+requested_kind = sentence
+coverage_policy = preserve_source
+max_items = 1
+```
+
+### Provider identity 优先
+
+一个 canonical SentenceUnit 可能：
+
+- 对应一个 surface sentence；
+- 因 segmentation 包含多个 surface sentences；
+- 因公式 / PDF extraction 退化为 fragment；
+- 只能可靠提供 Paragraph；
+- 被标记为 structural / caption / code / unknown。
+
+本仓库必须保留 actual unit identity，不根据标点私自生成平行 Sentence identity。
+
+## Exactly-one 与最小有用输入
+
+默认：
+
+```text
+一次 ReadingStep
+→ exactly one canonical SourceUnit
+```
+
+但句子不是绝对语义边界。以下情况可以使用显式 reveal group：
+
+- 公式把一句自然语言拆开；
+- 引文或脚注导致句法不完整；
+- 一个定义必须与紧邻 unit 联合才构成最小可解释输入；
+- PDF 转换造成错误断句。
+
+规则：
+
+```text
+最小有用输入
+>
+机械表面句号
+```
+
+任何 reveal group 都必须：
+
+- canonical 顺序连续；
+- 记录所有成员 SourceUnitRef；
+- 不跨 `current_scope_boundary`；
+- 不借机读取下一个独立推理单元；
+- 由 durable next_action 或当前 protocol 明确授权。
+
+若当前 scope 只授权一个 canonical unit，则不能为了得到“更完整”内容自行扩大。
+
+## Precise re-read
+
+当前允许 SourceUnit 应通过 precise `TextLocator` exact re-read。
+
+```text
+get_text_units
+→ current SourceUnitRef
+→ read_document(document_id, target_locator)
+```
+
+stale、identity mismatch 或 exact-read failure 时 fail closed；不通过旧 snippet + search 做 fuzzy rebase。
+
+## 一个 SourceUnit 的默认学习层次
+
+### 1. 字面含义
 
 回答：
 
-> 这句话直接说了什么？
+> 当前 Source 直接说了什么？
 
 只做必要释义，不提前扩展完整背景。
 
-### 第 2 层：与前文关系
+### 2. 与已揭示前文的关系
 
 回答：
 
-> 为什么它接在这里？它与上一句 / 当前段落是什么关系？
+> 为什么它接在这里？它承接、澄清、转折、限制或回答了什么？
 
 常见关系：
 
@@ -99,178 +215,143 @@ consequence
 evidence
 boundary
 transition
+recap / bridge
 ```
 
-### 第 3 层：新增信息
+### 3. 当前真实认知增量
 
 回答：
 
-> 当前问题模型新增了什么？
+> 相对于此前模型，当前 unit 新增或修正了什么？
 
 可能是：
 
-- 一个新事实
-- 一个假设
-- 一个限制
-- 一个目标
-- 一个失败模式
-- 一个设计选择
-- 一个证据
-- 一个边界
+- 新事实；
+- 假设；
+- 限制；
+- 目标；
+- failure mode；
+- design choice；
+- mechanism；
+- evidence；
+- boundary。
 
-### 第 4 层：为什么现在需要这一步
+### 4. 为什么现在需要这一步
 
-回答：
+当 Source 足够支持时回答：
 
-> 如果只知道此前内容，是什么压力或缺口推动作者走到这里？
+> 如果只知道此前内容，哪个压力、缺口或开放问题推动作者在这里加入当前信息？
 
-这里学习的是“箭头”。
+当前文本不足以证明作者意图时，使用“可能 / 更像 / 从结构上看”，而不是断言作者心理。
 
-### 第 5 层：当前状态更新
+### 5. 当前状态更新
 
-把当前理解写成简短状态：
-
-```text
-我们已经知道什么？
-当前主要问题是什么？
-有哪些约束？
-哪些问题仍然开放？
-```
-
-### 第 6 层：预测下一步
-
-在读取下一句以前，尝试：
+维护：
 
 ```text
-下一步可能处理什么？
-有哪些合理分支？
-什么约束会影响选择？
+Known facts
+Current problem
+Constraints
+Explicit reasoning links
+Open questions
 ```
 
-Prediction 不要求命中作者。
+只更新受当前 Source 影响的部分，不在每一步重复整节 summary。
 
-## AI 行为
+### 6. 停止边界
 
-Learning Mode 下，AI 应：
-
-- 一次只揭示当前 SentenceUnit 或明确的最小 reveal group
-- 只使用允许的历史上下文
-- 一层一层解释，不一次把后文全部讲完
-- 区分原文事实与 Derived interpretation
-- 明确指出“看到什么 cue，激活什么问题结构”
-- 如果当前文本不足以证明作者意图，使用“可能 / 更像 / 当前可推测”而不是断言
-- 在自然学习边界停下
-- 用户说“下一句”时才推进 Source position
-
-AI 不应：
-
-- 因为知道整篇论文而提前剧透
-- 把自己的预测写成作者原意
-- 输出大段不必要的内部 chain-of-thought
-- 用知识百科替代当前论文阅读
-- 一次生成整节 summary 来绕过逐句学习
-
-## 学习者关注点
-
-第一遍阅读不要求每句都立即背下来。
-
-主要训练：
+记录：
 
 ```text
-看见什么？
-→ 为什么重要？
-→ 它改变了什么？
-→ 当前下一步会是什么？
+current SourceUnitRef / TextLocator
+revealed_position
+stop_boundary
+next_action
 ```
 
-如果某句只承担连接、定义或例证作用，不需要强行制造深层机制。
+当前解释结束后停止，不自动读取下一独立 SourceUnit。
 
-## 句子不是绝对边界
+## Source Fact、Derived Interpretation、Unknown
 
-以下情况可以使用 reveal group：
+### Source Fact
 
-- 公式把一句自然语言拆开
-- 引文或脚注导致句法不完整
-- 一个定义必须与紧邻下一句联合才能构成最小有用单元
-- PDF 转换造成错误断句
+当前或此前已 reveal Source 直接支持。
 
-规则：
+### Derived Interpretation
 
-```text
-最小有用输入 > 机械逐句
-```
+基于已揭示 Source 的有限推论，可在后续修正。
 
-但任何合并都必须：
+### Unknown
 
-- 保留原始顺序
-- 记录包含哪些 SentenceUnit
-- 不借机跨过自然推理边界
+当前 Source 尚未回答。
 
-## 前置知识使用规则
+所有显式 reasoning arrow 必须能追溯到已揭示 Source，或保持 Derived 身份。
 
-No-lookahead 不等于“禁止使用所有已有知识”。
+## 前置知识规则
 
-允许使用学习者已经拥有的背景知识，例如操作系统、数据库、数学基础。
+No-lookahead 不等于禁止所有已有知识。
+
+允许使用学习者已有的通用背景，例如：
+
+- 操作系统；
+- 数据库；
+- 网络；
+- 数学基础。
 
 但必须区分：
 
 ```text
 Source 当前证明了什么
 vs
-我因为既有知识还知道什么
+我因为外部背景还知道什么
 ```
 
-如果既有知识来自同一论文的未来部分，则首次 Session 中不可使用。
+来自同一论文未来部分的知识，在 clean first-pass Session 中不可使用。
 
-## Retrospective Mode
+现代实现与历史论文不同时，应明确版本边界，不能倒灌覆盖历史 Source 语义。
 
-读完整篇后可以重新回看早期句子，并使用全文理解：
+## Figure / Table / Equation
+
+当前允许 Source 涉及视觉对象时，可使用 original source view。
+
+必须区分：
 
 ```text
-retrospective = true
+正文 Source Fact
+original-page visual observation
+AI visual interpretation
 ```
 
-这时可以分析：
+看到整页不授权使用尚未 canonical reveal 的未来正文。
 
-- 早期伏笔后来如何展开
-- 一个术语后文怎样被精确定义
-- 一个早期约束最终影响了什么机制
+## Prediction
 
-但必须明确：
+Prediction 是独立的时序证据。
 
-> 这是知道全文后的回顾，不是首次阅读位置 N 当时能够确定的结论。
-
-## 多遍阅读建议
-
-### Pass A：理解原文
+正式流程：
 
 ```text
-逐句
-→ 字面
-→ 关系
-→ 新增信息
+基于 revealed position 形成 prediction
+→ durable persist
+→ actual next Source reveal
+→ comparison
+→ missing cue / misconception
+→ model update
 ```
 
-### Pass B：学习推理结构
+Prediction 不要求命中作者，但原 prediction 不得事后修改。
 
-```text
-problem
-→ constraint
-→ decision
-→ consequence
-```
+不是每个普通 Learning Step 都必须自动做 Prediction；是否执行由当前 Session mode / durable next_action 决定。
 
-### Pass C：Prediction
+## Recall / Reconstruction / Transfer
 
-遮住下一句，预测合理方向。
+### Recall
 
-### Pass D：Recall
+只看 cue 或问题，主动恢复关键连接。展示答案后不能继续算无提示 Recall。
 
-只看 cue 或问题，重建关键连接。
+### Reconstruction
 
-### Pass E：Reconstruction
-
-按小节或整篇重建：
+按明确提示级别重建：
 
 ```text
 Problem
@@ -282,52 +363,62 @@ Problem
 → Evidence
 ```
 
-### Pass F：Transfer
+### Transfer
 
-把同一思考结构应用到新问题。
+把同一思考结构应用到真正的新问题，不是原题换词。
 
-Pass 不是永久状态机，只是建议的学习视角。
+这些 mode 仍必须保持 Source / Derived 边界，但不等同于首次顺序 reveal。
 
-## 一个最小交互示例
+## Retrospective
 
-当前已揭示：
+读过后文后可以回看早期句子，但必须显式标记 retrospective。
 
-```text
-系统需要处理规模持续增长的数据。
-单个节点的容量不足以满足需求。
-```
+可以分析：
 
-此时不应该直接跳到作者后文方案。
+- 早期伏笔后来如何展开；
+- 术语后文如何精确定义；
+- 早期约束最终影响什么机制。
 
-当前可建立：
+同时必须说明：
 
-```text
-数据规模增长
-→ 单节点容量成为约束
-→ 需要跨多个节点承载数据
-```
+> 这是知道后文后的回顾，不是首次位置当时可确定的结论。
 
-然后停下来预测：
+## AI 行为
 
-```text
-下一步可能要解决：
-数据如何划分？
-数据如何定位？
-节点变化时如何处理？
-```
+AI 应：
 
-再揭示作者下一句。
+- 先恢复 durable Session state；
+- reveal 前执行 scope gate；
+- 一次只取得当前授权 SourceUnit / reveal group；
+- 保留 provider actual kind / identity；
+- exact re-read 当前 locator；
+- 区分 Source Fact / Derived / Unknown；
+- 明确 current cognitive increment；
+- 在自然学习边界停止；
+- Tool / identity / scope failure 时 fail closed。
 
-重点不是预测一定命中，而是让自己的问题模型变得可观察、可修正。
+AI 不应：
+
+- 因为知道整篇论文而提前剧透；
+- 把 prediction 或 reconstruction 写成作者事实；
+- 用百科知识替代当前 Source；
+- 一次生成整节 summary 绕过逐句学习；
+- 用全文 search 寻找下一句；
+- 静默扩 scope；
+- 把完整 chain-of-thought 当作 learning artifact。
 
 ## 核心不变量
 
 ```text
-上下文只能向前增长。
+Scope 在 reveal 前检查。
+上下文只能沿 revealed_position 增长。
 当前解释不能依赖未来 Source。
-事实与解释分开。
-预测与作者事实分开。
-第一次阅读与回顾阅读分开。
-一次只加深一点。
+Provider canonical identity 优先。
+Precise locator failure fail closed。
+事实、有限推论和未知分开。
+Prediction 与 Source fact 分开。
+首次阅读与 Retrospective 分开。
+一次只推进授权的最小输入。
+每步以明确 stop boundary 结束。
 最终训练的是可迁移的思考结构，而不是 AI 文本记忆。
 ```

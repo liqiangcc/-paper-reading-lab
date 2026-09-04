@@ -1,23 +1,23 @@
 # 文档导航
 
-Paper Reading Lab 当前文档按“先边界、再领域、再 Source Adapter、再学习协议、最后执行与验证”的顺序阅读。
+Paper Reading Lab 的静态文档只承担**稳定方法、领域模型和治理规则**，不承担实时任务状态。当前 Paper / Session / Task 的 live state 始终以对应 GitHub Issue 的最新 durable record 为准。
 
-## Agent / Fresh conversation 入口
+## Agent / fresh-conversation 入口
 
-面向 GPT / Codex / Agent 的仓库治理入口：
+面向 GPT、Codex 和其他 Agent 的入口：
 
 ```text
 ../AGENTS.md
-→ 仓库长期 Agent 规则、工具边界、Skill 路由和 fail-closed 不变量
+→ 仓库级规则、工具边界、Skill 路由和 fail-closed 不变量
 
 workflows/conversation-bootstrap.md
-→ 薄入口 Prompt 如何从 live Issue / checkpoint / handoff 恢复执行状态
+→ 薄 Prompt 如何从 live Issue / checkpoint / handoff 恢复执行状态
 
 ../.agents/skills/source-first-reading/SKILL.md
-→ “下一句 / 下一步 / resume ReadingSession” 的可执行 Source-First Reading Skill
+→ source-first ReadingSession 的有界执行程序
 ```
 
-推荐 fresh conversation 入口保持很薄：
+推荐入口保持很薄：
 
 ```text
 repo + Issue
@@ -26,121 +26,142 @@ repo + Issue
 → 从 durable state 恢复
 ```
 
-不要把 locator、Profile 全文、历史 transcript 或整套 Source-First 规则重复塞进入口 Prompt。
+不要在入口 Prompt 中重复 TextLocator、Profile 全文、历史 transcript 或整套 Source-First 规则。
 
 ## 推荐阅读顺序
 
 1. [`../README.md`](../README.md)
-   - 仓库目标、核心原则、学习模式和整体边界。
+   - 仓库目标、总体模型、稳定入口与核心不变量。
 
-2. [`architecture/boundaries.md`](architecture/boundaries.md)
-   - 明确本仓库与 `reading-mcp`、`classic-papers-system-design`、`systems-mechanism-lab` 的职责分离。
+2. [`../AGENTS.md`](../AGENTS.md)
+   - Agent 长期工作规则、工具职责、路由与停止条件。
 
-3. [`domain/model.md`](domain/model.md)
-   - 定义 `Paper`、`PaperRevision`、`ReadingSourceBinding`、`SourceUnitRef`、`ReadingSession`、`ReadingStep`、`ReadingCheckpoint` 等核心对象。
+3. [`architecture/boundaries.md`](architecture/boundaries.md)
+   - 明确 `paper-reading-lab`、`reading-mcp`、GitHub Issue 和下游知识仓库之间的职责分离。
 
-4. [`integrations/reading-mcp.md`](integrations/reading-mcp.md)
-   - 定义 `reading-mcp` 作为首选 Source Adapter 的身份、定位、stale、no-lookahead 和降级边界。
+4. [`domain/model.md`](domain/model.md)
+   - 定义 `Paper`、`PaperRevision`、`ReadingSourceBinding`、`SourceUnitRef`、`ReadingSession`、`ReadingStep`、checkpoint、learning artifact 和 Explanation Profile 等领域对象。
 
-5. [`learning/source-first-sentence-reading.md`](learning/source-first-sentence-reading.md)
-   - 定义逐句优先、累积上下文、no-lookahead 和一层一层解释的核心学习协议；回答“允许读取什么、何时允许读取”。
+5. [`integrations/reading-mcp.md`](integrations/reading-mcp.md)
+   - 定义 `reading-mcp` 作为 Source Adapter 的 identity、named-section structure、locator、stale、source view 和 no-lookahead 边界。
 
-6. [`learning/incremental-explanation-profile.md`](learning/incremental-explanation-profile.md)
-   - 定义取得当前 SourceUnit 后的版本化解释与呈现 Profile，包括 MUST / SHOULD / MAY、L0 / L1 / L2 自适应深度、Source / Derived / Unknown 边界和跨会话恢复。
+6. [`source/source-policy.md`](source/source-policy.md)
+   - 定义论文版本、来源、转换文本、OCR、原始视觉 Source 和公开仓库版权边界。
 
-7. [`learning/reading-sessions.md`](learning/reading-sessions.md)
-   - 定义 Learning、Prediction、Recall、Reconstruction、Transfer、Retrospective 等 Session 模式、checkpoint 和 Explanation Profile binding。
+7. [`learning/source-first-sentence-reading.md`](learning/source-first-sentence-reading.md)
+   - 规定允许读取什么、何时允许读取，以及逐句增量学习的基本协议。
 
-8. [`workflows/issue-driven-workflow.md`](workflows/issue-driven-workflow.md)
-   - 定义 `1 Paper → 1 Primary GitHub Issue`，以及 Issue 作为控制面而非 Source truth 的边界。
+8. [`learning/incremental-explanation-profile.md`](learning/incremental-explanation-profile.md)
+   - 规定取得当前 SourceUnit 后的解释与呈现方式，包括 MUST / SHOULD / MAY 和 L0 / L1 / L2 自适应深度。
 
-9. [`workflows/paper-reading-lifecycle.md`](workflows/paper-reading-lifecycle.md)
-   - 分离 Source 生命周期和 ReadingSession 生命周期，并明确 Paper 不存在永久 `done`。
+9. [`learning/reading-sessions.md`](learning/reading-sessions.md)
+   - 定义 Learning、Prediction、Recall、Reconstruction、Transfer、Retrospective、scope、Profile binding、checkpoint 和 learning artifact。
 
-10. [`source/source-policy.md`](source/source-policy.md)
-   - 定义论文版本、来源定位、转换文本、OCR 和公开仓库版权边界。
+10. [`workflows/issue-driven-workflow.md`](workflows/issue-driven-workflow.md)
+    - 定义 `1 Paper → 1 Primary Issue`，以及 Issue 作为控制面而非 Source truth 的边界。
 
-11. [`validation/invariants.md`](validation/invariants.md)
-    - 定义后续 Validator 要保护的关键不变量。
+11. [`workflows/paper-reading-lifecycle.md`](workflows/paper-reading-lifecycle.md)
+    - 分离 Source 生命周期、ReadingSession 生命周期和 export 生命周期。
 
-12. [`conventions/language.md`](conventions/language.md)
+12. [`workflows/conversation-bootstrap.md`](workflows/conversation-bootstrap.md)
+    - 定义 fresh conversation 的恢复顺序、durable-record 选择、capability check、执行和停止。
+
+13. [`validation/invariants.md`](validation/invariants.md)
+    - 定义后续 Validator 和人工 review 必须保护的关键不变量。
+
+14. [`conventions/language.md`](conventions/language.md)
     - 人类文档默认中文，machine identity 使用稳定英文，Source 保持原文。
 
-13. [`pilot/first-pilot.md`](pilot/first-pilot.md)
-    - Kafka 2011 首个逐句阅读 Pilot 的执行协议、验收标准与机制复盘基线。
+15. [`pilot/first-pilot.md`](pilot/first-pilot.md)
+    - Kafka 2011 首个真实 Pilot 的历史执行协议和原始验收基线。
 
-## 当前权威入口
+16. [`pilot/first-pilot-closure.md`](pilot/first-pilot-closure.md)
+    - 首个 Pilot 的 closure matrix、真实 finding、已完成 hardening 和未解决边界。
 
-当前阶段第一版方法论核心：
+17. [`audits/2026-09-repository-audit.md`](audits/2026-09-repository-audit.md)
+    - 本轮全仓库一致性审查、修复和剩余 finding。
 
-```text
-README.md
-+
-docs/architecture/boundaries.md
-+
-docs/domain/model.md
-+
-docs/integrations/reading-mcp.md
-+
-docs/learning/source-first-sentence-reading.md
-+
-docs/learning/incremental-explanation-profile.md
-+
-docs/learning/reading-sessions.md
-+
-docs/workflows/issue-driven-workflow.md
-+
-docs/workflows/paper-reading-lifecycle.md
-+
-docs/source/source-policy.md
-+
-docs/validation/invariants.md
-```
+## 可执行 Skill
 
-当前机制执行入口：
+### Source-First Reading
+
+路径：
 
 ```text
-GitHub Issue #4 — Source-First 增量解释 Profile v0.1
-+
-GitHub Issue #2 — Kafka 2011 acceptance fixture / Pilot evidence
+../.agents/skills/source-first-reading/SKILL.md
 ```
 
-## 已经确定、不再重复设计的边界
+适用于：
+
+- 开始、继续或恢复 source-first ReadingSession；
+- 用户说“下一句 / 下一步”；
+- 按 durable checkpoint 执行 exactly-one ReadingStep；
+- 当前已允许 Source 的 Figure / Table / Equation fidelity review；
+- scope、locator、revision、Profile 或 MCP blocker 时安全停止。
+
+Skill 是**有界执行程序**，不是新的方法论来源。它必须引用 canonical docs，不得平行重建 Source identity 或扩大 no-lookahead 可见范围。
+
+## 文档职责图
 
 ```text
-reading-mcp = 首选 Source Adapter
-paper-reading-lab = 学习 / Session / 推理 checkpoint 层
-GitHub Issue = 工作流控制面
+AGENTS.md
+→ repository routing + hard invariants
 
-1 Paper → 1 Primary Issue
-1 Paper → N ReadingSessions
+conversation-bootstrap.md
+→ fresh-conversation recovery algorithm
 
-Source precise identity 由 reading-mcp 提供
-paper-reading-lab 保存 SourceUnitRef，不平行重建 Sentence identity
+source-first-reading/SKILL.md
+→ bounded execution procedure
+
+source-first-sentence-reading.md
+→ source visibility / incremental learning protocol
+
+incremental-explanation-profile.md
+→ explanation and presentation contract
+
+reading-sessions.md
+→ Session modes / scope / durable learning state
+
+reading-mcp.md
+→ Source Adapter contract
+
+invariants.md
+→ review / validator protection targets
 ```
 
-## 当前不应该继续扩展的内容
+## 稳定入口与实时状态
 
-在真实 Pilot finding 尚未证明必要前，暂时不要急着增加：
+静态文档可以引用 Paper Issue 作为案例，但不把“当前正在执行哪个 Issue”写成长期真相。
 
-- 大量 schema
-- 自建 sentence segmentation
-- 复杂数据库
-- 完整知识图谱
-- 大量论文目录
-- 自动跨仓库同步
-- 完整评分系统
-- 大量 Label taxonomy
-
-这些都应由真实逐句阅读暴露的需求驱动。
-
-## 下一步
+实时查询应回答：
 
 ```text
-Issue #4
-→ 完成 Profile v0.1 文档候选
-→ 使用 Kafka Issue #2 做 fresh-conversation acceptance
-→ 记录 acceptance finding
-→ 根据证据修订或确认 pilot-candidate
-→ 通过评审后合并
+这个 Paper 的 Primary Issue 是什么？
+最新 Session checkpoint / handoff 是什么？
+当前 scope / revealed_position / next_action 是什么？
+哪些 Task / PR 已完成或被阻塞？
 ```
+
+而不是从 README 中推断当前任务。
+
+## 当前不自动化的部分
+
+在更多真实 Session 证明必要前，不急于增加：
+
+- 大型数据库；
+- 自建 sentence segmentation；
+- 完整知识图谱；
+- 自动风格评分或 LLM-as-judge；
+- 完整 Session JSON schema；
+- 自动跨仓库同步；
+- 大量 mode / score Label。
+
+已经有重复性证据的基础治理检查可进入轻量 Validator，但不能替代 Source provider、人工 review 或真实 Pilot。
+
+## 本地校验
+
+```bash
+python3 scripts/validate_repository.py
+```
+
+详细检查项见脚本输出和 [`audits/2026-09-repository-audit.md`](audits/2026-09-repository-audit.md)。

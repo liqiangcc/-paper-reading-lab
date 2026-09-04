@@ -1,245 +1,239 @@
 ---
 name: source-first-reading
-description: Start, continue, resume, or safely pause a paper-reading-lab source-first ReadingSession using GitHub durable state and reading-mcp canonical Source. Use for “下一句/下一步”, sequential paper reading, fresh-conversation recovery, current-step fidelity review, or a ReadingSession blocker. Do not use for generic repository governance or unrelated paper summaries.
+description: Execute one bounded paper-reading-lab source-first ReadingSession action from GitHub durable state using reading-mcp canonical Source. Use for starting, continuing, “下一句/下一步”, fresh-conversation recovery, current-source fidelity review, or safe pause/blocker handling. Do not use for generic repository audits, unrelated summaries, or PR governance.
 ---
 
 # Source-First Reading
 
 ## Role
 
-This Skill executes one bounded ReadingSession action under the repository's existing protocol.
+Execute **one authorized, bounded ReadingSession action**.
 
-It does not redefine Source identity, no-lookahead, ReadingSession lifecycle, Explanation Profile, or Issue workflow. Those remain canonical in repository docs.
+This Skill is a procedure, not method truth. It must follow:
+
+- root `AGENTS.md`;
+- `docs/workflows/conversation-bootstrap.md`;
+- canonical Source / Session / workflow docs;
+- the target Issue's latest applicable durable state;
+- the exact bound Explanation Profile, if any.
+
+Do not redefine Paper identity, SourceUnit identity, no-lookahead, scope or Profile semantics here.
 
 ## Required tools
 
-Use:
-
 ```text
 github-mcp
-→ live Issue / PR / durable control state
+→ Issue / repository live state and durable writes
 
 reading-mcp
-→ canonical paper Source / SourceUnit / TextLocator / source view
+→ canonical paper Source, structure, SourceUnit, locator and source view
 ```
 
-Do not use Web to obtain or search the paper body during a clean first-pass source-first Session when `reading-mcp` is the bound Source provider.
+For a clean first-pass Session, do not use Web, downstream analysis, Issue prose or model memory to obtain future paper body text.
 
-## Mandatory bootstrap
+## Bootstrap
 
-Before Source reveal:
+Before any new Source reveal:
 
-1. Read root `AGENTS.md`.
+1. Read `AGENTS.md`.
 2. Read the target Issue live state and relevant comments.
-3. Read `docs/workflows/conversation-bootstrap.md`.
-4. Recover the latest applicable checkpoint / handoff / blocker / next_action.
-5. Read these canonical method docs as needed:
-   - `docs/learning/source-first-sentence-reading.md`
-   - `docs/learning/reading-sessions.md`
-   - `docs/workflows/paper-reading-lifecycle.md`
-   - `docs/workflows/issue-driven-workflow.md`
-   - `docs/validation/invariants.md`
-6. If durable state binds an Explanation Profile, read exactly the bound `style_profile.source` and version. Do not silently use a newer Profile.
+3. Follow `docs/workflows/conversation-bootstrap.md`.
+4. Recover the latest applicable checkpoint / handoff / blocker / next action.
+5. Load only the canonical docs needed for this action:
+   - `docs/integrations/reading-mcp.md`;
+   - `docs/learning/source-first-sentence-reading.md`;
+   - `docs/learning/reading-sessions.md`;
+   - `docs/workflows/paper-reading-lifecycle.md`;
+   - `docs/workflows/issue-driven-workflow.md`;
+   - `docs/validation/invariants.md`.
+6. If a Profile is bound, read the exact `profile_id + version + source` from durable state.
 
-Do not require the user to re-paste locator, Profile rules, or old transcript when durable GitHub state already contains them.
+Do not ask the user to re-paste a locator or Profile that GitHub durable state already contains.
 
-## Recover execution state
+## Recover required state
 
-Before doing anything irreversible or revealing new Source, recover and verify:
+Verify before execution:
 
 ```text
 paper_id
 revision_id
-reading provider
-reading_document_id / normalized identity
-Session mode
-lookahead policy
+reading provider / document identity
+Session id / mode / lookahead policy
 planned_scope
 current_scope_boundary
 revealed_position
-latest precise TextLocator
-bound Profile id/version/source (if any)
-immutable prediction reference (if any)
-next_action
+latest precise SourceUnitRef / TextLocator
+bound Profile identity（if any）
+immutable prediction reference（if any）
+current next_action
 ```
 
-If critical state is missing or conflicting, fail closed. Do not reconstruct it from model memory.
+Missing or conflicting critical state fails closed.
 
-## Scope gate before reveal
+## Scope gate
 
-Every new canonical reveal must be preceded by a scope check.
+Before every new canonical reveal:
 
 ```text
-current locator
-→ determine whether the next canonical unit is inside current_scope_boundary
-→ inside?
-   ├─ yes → reveal is allowed
-   └─ no  → STOP before Source is revealed
-             ↓
-          durable scope amendment required
+next unit inside current_scope_boundary?
+├── yes → continue
+└── no  → STOP before reveal
+          → durable scope amendment required
 ```
 
 Never reveal first and amend scope afterwards.
 
-## Canonical sequential reveal
+If the boundary depends on a named paper section, use structure-only canonical navigation or a pre-validated boundary artifact. Do not use future-body lexical search as no-lookahead preflight.
 
-For ordinary sentence-first reading, default to exactly one canonical SourceUnit:
+## Canonical reveal
+
+For ordinary sentence-first reading, default to:
 
 ```text
 get_text_units(
   requested_kind = sentence,
   direction = forward,
   coverage_policy = preserve_source,
-  max_items = 1
+  max_items = 1,
+  anchor_locator = latest precise locator
 )
 ```
 
-Anchor at the latest precise locator from durable state or the current conversation's revealed position.
+Use the current allowed `section_id` / owner from durable scope.
 
-If the returned unit is structural / non-prose / code / figure label, follow the current protocol and scope boundary one canonical unit at a time. Do not batch-read future text merely to find something “more useful”.
+Rules:
 
-If segmentation splits one semantic sentence, preserve canonical fragments and the existing reveal-group rules. Never hide source degradation by inventing a new sentence identity.
+- preserve provider order and actual kind;
+- one canonical unit may contain multiple surface sentences;
+- do not invent a parallel sentence identity;
+- do not batch-read future units to find something “more useful”;
+- a structural / non-prose unit still counts as the returned canonical unit unless durable scope explicitly authorizes further filtering.
 
 ## Exact re-read
 
-For the allowed returned unit, use precise locator re-read:
+For the returned allowed unit call:
 
 ```text
 read_document(document_id, target_locator)
 ```
 
-Do not fuzzy-search old snippets to recover a stale locator.
+Do not use fuzzy snippet search to recover a stale locator.
 
-If exact re-read returns stale / identity mismatch / invocation failure:
+If exact re-read returns stale, identity mismatch, serialization failure or unsafe invocation failure:
 
 ```text
-fail closed
-→ do not fetch a second unit
-→ persist blocker / handoff if this is a durable boundary
+persist blocker / handoff when needed
+→ do not fetch another unit
 → STOP
 ```
 
 ## Original-source fidelity
 
-Use `get_source_view` only when the **current allowed Source** requires visual verification, such as:
+Use `get_source_view` only when the **current allowed Source** needs visual verification, such as a Figure, Table, Equation, Algorithm, multi-column layout or parser ambiguity.
 
-- Figure;
-- Table;
-- Equation;
-- Algorithm;
-- multi-column layout;
-- parser-fidelity ambiguity.
-
-Keep separate:
+Keep distinct:
 
 ```text
 text Source Fact
-vs
 original-page visual observation
+AI visual interpretation
 ```
 
-Seeing a whole page does not authorize use of future text on that page in a clean no-lookahead Session.
+Seeing a whole page does not authorize use of unrevealed future text on that page.
 
-## Explanation
+## Explain the current unit
 
-If a formal Explanation Profile is bound, follow it exactly by `id + version + source`.
+If a formal Profile is bound, follow that exact version.
 
-If no formal Profile is bound, use the minimum Source-First structure without assuming the latest Profile:
+If no formal Profile is bound, use only the minimal Source-first structure:
 
 ```text
 canonical original
-→ faithful translation / literal meaning as applicable
+→ faithful translation / literal meaning
 → relation to revealed past
 → actual cognitive increment
 → current problem model update
-→ Source Fact / Derived / Unknown boundary
+→ Source Fact / Derived / Unknown
 → precise locator
 → STOP
 ```
 
 Every explicit reasoning arrow must be traceable to revealed Source or remain explicitly Derived.
 
-Do not inject modern implementation details or future sections into historical paper interpretation.
+Do not inject modern implementation details or future sections into a historical paper explanation.
 
-## Stop boundary
+## Prediction action
 
-One user “下一句 / 下一步” normally authorizes one bounded ReadingStep, not an unlimited reading loop.
-
-At the end of the Step:
+When current mode requires Prediction evidence:
 
 ```text
-save / report current precise locator
-save stop_boundary
-next independent SourceUnit remains unrevealed
-STOP
-```
-
-Do not automatically start another SourceUnit, another Session mode, another paper, or another Task.
-
-## Durable writes
-
-Do **not** copy every long sentence explanation into the Primary Issue.
-
-Write durable GitHub state at meaningful boundaries, including:
-
-- Session start / pause / handoff;
-- Prediction lock;
-- scope amendment;
-- blocker;
-- natural checkpoint;
-- acceptance / closure.
-
-A durable handoff should be operational and compact. It should contain enough to restore safe execution, not a full transcript.
-
-If the current Issue protocol separates Operational Recovery Checkpoint and ReadingSession Learning Artifact, preserve that separation.
-
-## Prediction rule
-
-When the current mode counts a Prediction as training evidence:
-
-```text
-persist prediction
-→ only then reveal actual next SourceUnit
+persist immutable prediction
+→ only then reveal actual next unit
 → append comparison
 ```
 
-Never edit the original prediction after reveal to make it appear more accurate.
+Never edit the original prediction after reveal.
 
-## Failure rules
+A user “下一句” does not by itself authorize both a new prediction cycle and unlimited subsequent reading; follow the durable `next_action` and scope.
 
-Stop and persist a blocker / handoff when any of these occur:
+## Durable result
 
-- required MCP unavailable or invocation rejected;
-- PaperRevision / normalized identity conflict;
-- stale locator / cursor;
-- exact re-read failure that cannot be safely retried without changing Source scope;
-- next unit would cross `current_scope_boundary`;
-- future Source contamination;
+Do not copy every long explanation into the Primary Issue.
+
+Write durable state at meaningful boundaries:
+
+- Session start / pause / handoff;
+- Prediction lock / comparison;
+- scope amendment;
+- blocker / contamination;
+- natural checkpoint;
+- acceptance / closure.
+
+A compact Operational Recovery Checkpoint should preserve:
+
+```text
+Source / Revision identity
+Session / scope / revealed position
+latest precise locator
+Profile / immutable prediction refs
+stop boundary
+blocker / finding
+exactly one next action
+```
+
+Keep it separate from the richer ReadingSession Learning Artifact.
+
+## Stop boundary
+
+One “下一句 / 下一步” normally authorizes one bounded ReadingStep.
+
+At completion:
+
+```text
+current locator recorded
+stop_boundary recorded
+next independent SourceUnit remains unrevealed
+next_action explicit
+STOP
+```
+
+Do not automatically start another SourceUnit, Session mode, Paper or Task.
+
+## Failure conditions
+
+Fail closed and persist a recoverable blocker / handoff when:
+
+- required MCP is unavailable or invocation is rejected;
+- PaperRevision / normalized identity conflicts;
+- locator / cursor is stale;
+- exact re-read cannot be completed safely;
+- next unit crosses scope;
+- future Source contamination occurs;
 - bound Profile version cannot be recovered;
-- canonical repo rules conflict with durable Session state.
+- repo rules and durable Session state conflict.
 
-Do not substitute model memory, Web paper text, downstream analysis, or fuzzy search to keep moving.
+Do not substitute Web paper text, model memory, downstream analysis or fuzzy search.
 
-## Thin-entry success condition
+## Completion condition
 
-This Skill is working as intended when a fresh conversation can receive only:
-
-```text
-repo + Issue + “read AGENTS.md and execute by repository governance”
-```
-
-and then recover all necessary ReadingSession state from GitHub + canonical repo docs + `reading-mcp` without the user re-pasting the old long prompt.
-
-## Core invariants
-
-```text
-GitHub durable state controls workflow.
-reading-mcp controls paper Source truth.
-Canonical repo docs control method.
-A bound Profile controls presentation, not Source visibility.
-Scope is checked before reveal.
-Exactly-one is the default ReadingStep reveal size.
-Precise locator failure fails closed.
-Current explanation cannot depend on future Source.
-Current Step ends at an explicit stop boundary.
-```
+This Skill succeeds when it executes the current authorized ReadingSession action, preserves Source / scope / Profile / no-lookahead boundaries, writes required durable state, and stops.

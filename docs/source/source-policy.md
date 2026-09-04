@@ -2,237 +2,293 @@
 
 ## 目的
 
-Paper Reading Lab 需要忠实依赖论文原文，但“能够阅读论文”不等于“应该把完整论文复制进 Git 仓库”。
+Paper Reading Lab 的学习记录只有在 Source 身份、版本、投影和视觉证据边界清楚时才可信。
 
-本仓库默认按公开仓库治理，因此 Source policy 同时关注：
+本策略规定：
 
-- 来源身份
-- 版本关系
-- 可重复定位
-- 转换质量
-- 版权与公开分发边界
+- 如何识别 `Paper` 与 `PaperRevision`；
+- 什么可以作为 authoritative / raw source；
+- normalized text、OCR、original source view 的身份；
+- Source artifact 是否可以进入 Git；
+- no-lookahead Session 如何避免未来正文泄露；
+- Source 更新、stale locator 和迁移如何处理。
 
-本文件是仓库工程策略，不构成法律意见。
-
-## 基本原则
-
-```text
-能够定位原文
-≠
-必须保存完整原文到 Git
-```
-
-优先保存：
-
-- Paper metadata
-- DOI / canonical identifier
-- 官方、作者或机构来源 URL
-- 版本说明
-- section / page / paragraph / sentence locator
-- 必要且克制的短引用
-- 自己生成的 Derived 阅读记录
-
-## Source 优先级
-
-在可用时优先：
-
-1. 出版方官方页面 / 官方 PDF
-2. 作者主页或作者明确提供版本
-3. 大学 / 研究机构仓库
-4. 会议 / 学会官方归档
-5. 其他能够强验证身份与完整性的镜像
-
-搜索摘要、博客、二手笔记不能替代完整 Source。
-
-## PaperRevision 必须显式
-
-同一论文可能存在：
-
-- preprint
-- author manuscript
-- conference paper
-- journal extension
-- publisher version
-- corrected version
-
-阅读时必须知道当前绑定哪一个 revision。
-
-不能因为标题相同就自动认为：
+## Paper 与 PaperRevision
 
 ```text
-所有版本逐句完全一致
+Paper
+= 长期论文对象
+
+PaperRevision
+= 某个明确发布 / 修订版本
 ```
 
-## 完整 PDF / 全文
+同一 Paper 可能包括：
 
-### 可以进入 Git 的情况
+- conference version；
+- journal version；
+- technical report；
+- author manuscript；
+- extended version；
+- later revision。
 
-只有在权利状态明确允许仓库公开分发时，例如：
+ReadingSession 必须绑定明确 `revision_id`，不能只保存标题或 URL。
 
-- 明确开放许可证允许再分发
-- 公有领域
-- 用户自己拥有并明确授权公开提交的材料
-- 其他已经确认允许公开仓库保存的情况
+## Authoritative / Raw Source
 
-仍应记录来源和许可证信息。
+优先级按具体论文判断，常见候选：
 
-### 默认不进入 Git 的情况
+1. 出版方或会议官方 PDF / HTML；
+2. 作者或机构发布的明确版本；
+3. 可验证的镜像；
+4. 经人工核对的本地工作副本。
 
-如果许可证或权利状态不明确，不提交：
-
-- 完整 PDF
-- 完整 HTML dump
-- 全文 Markdown 转换
-- 大规模逐句复制的全文镜像
-
-可以在本地工作区、合法连接器或外部来源中读取，然后只在 Git 中保存定位信息和 Derived 学习资产。
-
-## 引用策略
-
-为了支持逐句学习，Session 可能需要显示当前原文句子。
-
-仓库持久化时遵循：
+Source metadata 至少记录：
 
 ```text
-最少必要引用
-+
-准确 locator
-+
-Derived 解释
+paper_id
+revision_id
+source location
+source provenance
+acquired_at
+content type
+size
+raw/content hash
+known limitations
 ```
 
-不要为了方便恢复 Session 而把整篇论文逐句复制进公开仓库。
+URL 可变化，因此 URL 本身不能承担完整 revision identity。
 
-如果一个 Pilot 需要完整文本才能自动恢复，应优先设计：
+## ReadingSourceBinding
 
-- 外部 Source locator
-- 本地不入 Git 的缓存
-- connector reference
-- content fingerprint
-
-而不是降低 Source policy。
-
-## Source locator
-
-建议尽量组合：
+正式阅读还必须绑定 Source provider：
 
 ```text
-canonical URL
-revision id
-section title
-published page
-pdf page
-paragraph order
-sentence order
-figure/table/equation id
+provider = reading-mcp
+reading_document_id
+content_hash
+normalized_document_hash
+normalization_version
+reading_profile_version
+segmentation_version
 ```
 
-目标是让另一个阅读会话能够重新打开合法 Source 并定位同一位置。
+`reading_document_id` 只表示 provider document identity；它不替代 `revision_id`。
 
-## 转换文本
+## Normalized text 是 projection
 
-PDF → text / Markdown 属于 Source projection，不自动等于 Raw Source。
+PDF / HTML 经解析后得到的 normalized text 是供顺序阅读和 locator 使用的 projection。
 
-必须记录：
+它可以支持：
 
-- 转换工具
-- 转换日期或版本
-- 页码是否保留
-- 多栏排版是否正确
-- 公式是否损坏
-- 图表是否缺失
-- 脚注 / 页眉 / 参考文献是否混入正文
+- section / paragraph / sentence enumeration；
+- canonical order；
+- exact TextLocator re-read；
+- source-grounded quotation；
+- current-step explanation。
 
-转换文本可以用于导航和 SentenceUnit segmentation，但高风险语义应回到可视原文确认。
-
-## OCR
-
-OCR 永远属于 Derived projection。
-
-即使 OCR 经过人工 fidelity review，也不能把 OCR 字节提升成原始扫描页本身。
-
-结构：
+但它不自动等价于原始发布视觉：
 
 ```text
-Raw image / scanned page
-        ↓
-OCR projection
-        ↓
-segmentation
-        ↓
-reading
+normalized text
+≠ original page layout
+≠ Figure / Table spatial semantics
+≠ Equation typesetting
 ```
 
-## 公式、图表与特殊结构
+## OCR 与生成式补全
 
-论文思路不只存在于自然语言句子。
-
-遇到：
-
-- equation
-- figure
-- table
-- algorithm
-- pseudocode
-- footnote
-
-可以创建专门 SourceUnit 或 locator。
-
-不要为了坚持“逐句”而忽略真正承载论证的图或公式。
-
-原则是：
+OCR、转换文本和 AI 重建必须保留其身份：
 
 ```text
-逐句是默认学习粒度，
-Source 真实结构优先于机械文本格式。
+OCR output
+= projection / extraction result
+
+AI reconstruction
+= generated interpretation
 ```
 
-## Source 完整性限制
+它们不得被标记为：
 
-以下问题必须显式记录：
+- raw source；
+- authoritative wording；
+- confirmed author text；
+- precise replacement for missing source。
 
-- 页面缺失
-- 只能访问片段
-- 图表不可读
-- 公式转换损坏
-- 版本关系不确定
-- 出版页码与 PDF 页码不一致
-- 当前 Source 以后可能失效
+Source 缺失、截断或公式不可读时，默认 blocked；不能用 AI “补完整”后继续声称 source-first。
 
-如果这些问题影响当前阅读可靠性，Source 状态应保持 `blocked` 或 `source-review`。
+## Original source view
 
-## 不允许的补全
+当 normalized text 无法证明视觉语义时，应使用 locator 绑定的 original source view。
+
+典型场景：
+
+- Figure；
+- Table；
+- Equation；
+- Algorithm；
+- 双栏排版；
+- 脚注 / 页眉页脚；
+- 图注与正文归属；
+- parser 顺序疑问。
+
+应记录：
+
+```text
+source locator
+page identity
+audit metadata
+visual observation
+AI interpretation（如有）
+```
+
+### 不变量
+
+- original source view 必须绑定 current document / normalized identity；
+- stale 时 fail closed；
+- 不用 OCR 或 AI 重绘冒充原页；
+- 看到整页不授权读取尚未 canonical reveal 的未来正文；
+- 视觉观察与正文 Source Fact 分开。
+
+## Named-section boundary Source
+
+严格 no-lookahead Session 在正文 reveal 前可能需要 named-section boundary。
+
+允许作为 boundary evidence 的来源：
+
+- provider 的 structure-only canonical hierarchy；
+- 预先验证且绑定当前 PaperRevision / normalized identity 的 boundary artifact；
+- 不返回正文的结构 metadata。
+
+不允许：
+
+- 用全文 lexical search 返回未来正文 snippet；
+- 从模型记忆猜测 page / section 边界；
+- 使用另一 Revision 的页码静默套用；
+- 先 reveal 越界正文再补 scope amendment。
+
+## Source readiness
+
+### source-ready
+
+表示：
+
+```text
+Paper identity 稳定
++ PaperRevision 稳定
++ provenance 可追溯
++ raw/content identity 可核验
++ limitation durable
+```
+
+### reading-ready
+
+在 source-ready 之上还需要：
+
+```text
+canonical order 可恢复
++ 当前 scope boundary 可执行
++ SourceUnit / locator 足够稳定
++ no-lookahead reveal 可执行
+```
+
+`source-ready ≠ reading-ready`。
+
+## Source limitation
+
+需要 durable 记录的 limitation 包括：
+
+- 双栏顺序风险；
+- OCR / parser 噪声；
+- heading / body classification 不稳定；
+- Formula / Table 丢失；
+- page-level structure only；
+- SentenceUnit 含多个 surface sentences；
+- original source view 不可用；
+- Source location 访问不稳定。
+
+limitation 不能只存在于某个旧聊天里。
+
+## Source 更新与 stale
+
+当 provider normalization、segmentation 或 document identity 变化时：
+
+```text
+old locator
+→ stale
+→ precise continuation STOP
+```
+
+允许的处理：
+
+1. 旧 Session 继续绑定旧 Source（若仍可访问）；
+2. 创建新 Session 绑定新 identity；
+3. 创建显式 migration / revision-comparison 记录。
 
 禁止：
 
 ```text
-缺一句 → AI 按上下文补一句
-缺公式 → AI 猜作者公式
-图看不清 → 用二手博客描述当原图
-版本不确定 → 默认最方便的版本就是正式版
+old snippet
+→ fuzzy search
+→ silently choose similar new location
 ```
 
-AI 可以给出恢复建议，但不能把重建内容登记为 Source truth。
+## 公开仓库版权边界
 
-## 与 Derived 的关系
+公开仓库默认不持久化完整受版权保护论文全文或大量连续正文。
 
-Source 只回答：
+优先保存：
 
-> 作者在这个 revision 的这个位置实际呈现了什么？
+- metadata；
+- hashes；
+- provenance；
+- stable locator；
+- 短而必要的 source excerpt；
+- Derived learning artifact；
+- finding / review evidence。
 
-Derived 才回答：
+本地授权 Source Workspace 中存在 PDF 工作副本，不自动意味着可以提交到公开 Git 历史。
 
-> 我们如何理解它？它和前文是什么关系？为什么重要？
+## Issue 中的 Source 引用
 
-两者必须始终可以分开审计。
+Primary Issue 可以引用：
+
+```text
+paper_id
+revision_id
+canonical source
+reading_document_id
+normalized identity
+source limitations
+```
+
+但 Issue comment 中复制的原文不成为 canonical Source truth。正式 claim 仍应回到 provider locator。
+
+## Source 与下游知识
+
+```text
+Source wording
+→ immutable historical evidence
+
+Reading interpretation
+→ revisable Derived state
+
+Validated downstream knowledge
+→ target repository review result
+```
+
+下游知识被修正时，不能回写改变历史 Source 或旧 Session 当时看到的内容。
 
 ## 核心不变量
 
 ```text
-Source 可追溯优先于 Source 大量复制。
-版本身份必须显式。
-公开仓库默认不镜像权利状态不明确的全文。
-OCR / 转换文本不自动等于 Raw Source。
-高风险语义可以回到可视原文复核。
-AI 不补造缺失 Source。
+Paper 与 Revision 分离。
+Revision 与 provider document identity 分离。
+Normalized text 和 OCR 保持 projection 身份。
+AI reconstruction 永远不是 Source。
+视觉 fidelity 通过 original source view 补充。
+Named-section boundary 不能靠未来正文搜索获得。
+Source limitation 必须 durable。
+Stale precise locator fail closed。
+公开仓库优先保存 locator，而不是全文。
 ```

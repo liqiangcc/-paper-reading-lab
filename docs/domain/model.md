@@ -2,194 +2,222 @@
 
 ## 目的
 
-本文件定义 Paper Reading Lab 最小领域对象，以及它们之间不能混淆的身份和状态。
+本模型用于区分：
 
-第一版只定义支持 Pilot 所需的对象，不追求一次把所有学习行为结构化。
+- 论文是什么；
+- 当前读取的是哪个版本；
+- Source provider 中绑定的是哪个文档；
+- 某次 ReadingSession 允许读什么、已经读到哪里；
+- 如何恢复操作状态；
+- 如何保存比 checkpoint 更丰富、但明显小于 transcript 的学习状态；
+- 哪些内容是 Source Fact，哪些只是 Derived Interpretation。
+
+核心原则：
+
+```text
+Paper identity
+≠ PaperRevision identity
+≠ reading provider document identity
+≠ ReadingSession identity
+≠ GitHub Issue identity
+```
 
 ## 总体关系
 
 ```text
 Paper
-  └── PaperRevision
-        └── ReadingSourceBinding
-              └── SourceUnitRef
+└── PaperRevision 1..N
+    └── ReadingSourceBinding 0..N
+        └── SourceUnitRef 0..N
 
 Paper
-  └── 1 Primary GitHub Issue
+└── ReadingSession 0..N
+    ├── ReadingStep 0..N
+    ├── OperationalRecoveryCheckpoint 0..N
+    ├── ReadingSessionLearningArtifact 0..N
+    ├── ExplanationProfileRef 0..1
+    ├── KnowledgeGap 0..N
+    └── TrainingResult 0..N
 
-PaperRevision
-  └── ReadingSession
-        └── ReadingStep / ReadingCheckpoint
-              ├── Observation
-              ├── Prediction
-              ├── KnowledgeGap
-              └── TrainingResult
+Paper / ReadingSession finding
+└── ExportCandidate 0..N
 ```
-
-其中 Source 的 Section / Paragraph / Sentence 精确身份默认由 `reading-mcp` 提供；Paper Reading Lab 保存引用，不重新建立平行分句系统。
 
 ## Paper
 
-`Paper` 表示“作品身份”，而不是某个具体 PDF 文件。
+表示论文这一长期智力对象，不绑定某一个具体文件。
 
 建议字段：
 
 ```text
 paper_id
-title
+canonical_title
 authors
-publication_year
-venue
-canonical_identifier
-primary_issue
+year
+venue / publication context
+canonical identifiers（DOI 等，可选）
+primary_issue_ref
 ```
 
-`paper_id` 应使用仓库内稳定 machine identity，不依赖目录标题显示文本，也不依赖 GitHub Issue number。
+### 不变量
 
-推荐关系：
-
-```text
-1 Paper
-↕
-1 Primary GitHub Issue
-```
-
-Issue 是长期工作入口和控制面，不承担 Paper identity 本身。
+- `paper_id` 是稳定 machine identity；
+- Issue number、标题或 PDF 文件名不能替代 `paper_id`；
+- Paper 不存在永久 `done = true`；
+- 同一 Paper 可以有多个 Revision 和无限多个 ReadingSession。
 
 ## PaperRevision
 
-`PaperRevision` 表示一次具体可读取版本。
+表示某个可明确识别的论文版本，例如：
 
-同一 Paper 可能存在：
-
-- conference version
-- journal version
-- author manuscript
-- publisher version
-- corrected version
-- technical report version
-
-这些版本不能自动视为完全相同。
+- 正式会议版本；
+- extended technical report；
+- 作者 manuscript；
+- 后续修订版。
 
 建议字段：
 
 ```text
 revision_id
 paper_id
-version_label
-source_url
-source_kind
-captured_or_verified_at
-content_fingerprint
-reading_source_binding
-limitations
+revision_kind
+publication_identity
+canonical_source_ref
+source_provenance
+raw_hash（可选）
+known_relationships
+known_limitations
 ```
 
-首次顺序阅读必须绑定一个明确 `revision_id`。
+### 不变量
 
-如果阅读过程中更换版本，应创建新 Session 或显式记录 revision change，不能静默切换。
+- ReadingSession 必须绑定一个 `revision_id`；
+- Session 开始后不能静默切换 Revision；
+- 新 Revision 不覆盖旧 Session 历史；
+- Revision 关系可以通过独立 revision-comparison Session 分析。
 
 ## ReadingSourceBinding
 
-`ReadingSourceBinding` 把 `PaperRevision` 绑定到实际 Source provider。
+把 `PaperRevision` 与具体 Source provider 中的 document identity 关联起来。
 
-第一版首选：
+建议字段：
 
 ```text
-provider = reading-mcp
+binding_id
+paper_id
+revision_id
+provider
+reading_document_id
+content_hash
+normalized_document_hash
+normalization_version
+reading_profile_version
+segmentation_version
+media_type
+source_location
+known_limitations
+created_at
 ```
+
+其中：
+
+```text
+revision_id
+= 论文版本身份
+
+reading_document_id
+= Source provider 内部文档身份
+
+normalized_document_hash
+= 当前 normalized projection 身份
+```
+
+三者不能相互替代。
+
+### 不变量
+
+- precise continuation 必须同时满足 Revision 与 provider identity；
+- normalized identity 变化时旧 locator 默认 stale；
+- stale 不能 fuzzy rebase 成“最像文本”；
+- Binding limitation 必须 durable，可由 fresh conversation 恢复。
+
+## SourceUnitRef
+
+表示 Source provider 中可精确回读的 canonical 阅读单元引用。
 
 建议字段：
 
 ```text
 provider
 reading_document_id
-normalized_document_identity
-reading_profile_version
+normalized_document_hash
 segmentation_version
-canonical_source
-bound_at
-limitations
-```
-
-它回答：
-
-> 当前这个 PaperRevision 在阅读基础设施里究竟绑定到哪一个可重复定位的文档身份？
-
-如果 `reading-mcp` 返回 locator / cursor stale，必须停止 precise continuation 并显式 reconcile，不能静默重新匹配。
-
-## SourceUnitRef
-
-`SourceUnitRef` 是对上游当前最小可靠 Source Unit 的引用，不是本仓库重新生成的句子对象。
-
-默认优先引用 `reading-mcp` 返回：
-
-```text
-reading_document_id
-normalized_document_identity
-text_unit_id
+text_unit_id（如 provider 提供）
 text_locator
-segmentation_version
-requested_kind
 actual_kind
+content_class
+source_order
 ```
 
-可以附带便于人类阅读的 display 信息：
+`text_locator` 可以包含：
 
 ```text
-section_title
-page
-paragraph_order
-sentence_order
+owner_section_id
+section_path
 native_location
+paragraph_index
+sentence_index
+normalized_range
+content_hash
+normalized_document_hash
+segmentation_version
 ```
 
-但 display 信息不取代 precise identity。
+### 不变量
 
-### 不自行推导 Sentence identity
+- 本仓库不平行生成自己的 Sentence identity；
+- page / paragraph / sentence display number 不能单独承担 precise identity；
+- SourceUnitRef 必须能交回 provider exact re-read；
+- coarse Paragraph 不能在本仓库伪装成 Sentence；
+- reveal group 只允许组合 canonical 顺序连续单元。
 
-不再以：
+## ExplanationProfileRef
+
+表示 ReadingSession 采用的版本化解释与呈现 Profile。
+
+建议字段：
 
 ```text
-revision_id + section path + paragraph order + sentence order
+profile_id
+version
+source_path
+status
+style_overrides
+bound_at
+transition_ref（可选）
 ```
 
-生成平行的 `SentenceUnit` identity。
+例如：
 
-原因：
-
-- Source conversion 可能变化
-- segmentation version 可能变化
-- 复杂 block 可能只能提供 coarse Paragraph
-- 上游已经有 stale 检测和 precise locator 契约
-
-Paper Reading Lab 的职责是引用 Source，而不是重建 Source identity。
-
-### 逐句是默认，不是伪造精度
-
-当上游可以可靠返回 Sentence 时：
-
-```text
-actual_kind = sentence
+```yaml
+profile_id: source-first-incremental-explanation
+version: v0.1
+source_path: docs/learning/incremental-explanation-profile.md
+style_overrides:
+  language: zh-CN
+  depth: adaptive
 ```
 
-当 Source evidence 只能支持更粗单元时，可以是：
+### 不变量
 
-```text
-actual_kind = paragraph
-```
-
-公式、表格、伪代码、图、列表等也允许使用对应的最小可靠 locator。
-
-原则：
-
-```text
-Source evidence > 逐句外观
-```
+- `profile_id + version` 共同承担 identity；
+- Profile 只控制解释与呈现，不扩大 Source 可见范围；
+- Session 恢复不得静默采用“仓库最新版”；
+- Profile 切换必须新建 Session，或显式记录 transition、位置和影响。
 
 ## ReadingSession
 
-`ReadingSession` 表示一次有边界的学习过程。
+表示一次有明确目标、范围、模式和生命周期的学习活动。
 
 建议字段：
 
@@ -197,263 +225,398 @@ Source evidence > 逐句外观
 session_id
 paper_id
 revision_id
+source_binding_id
 mode
-scope
-started_at
-revealed_position
-focus
-prior_knowledge_policy
+learning_goal
 lookahead_policy
+planned_scope
+current_scope_boundary
 status
-completed_at
+revealed_position
+view_position（可选）
+style_profile_ref（可选）
+created_at
+updated_at
+contamination_state
 ```
 
-`mode` 第一版建议支持：
+### planned_scope
+
+Session 创建时的历史计划，例如：
 
 ```text
-learning
-prediction
-recall
-reconstruction
-transfer
-retrospective
+Section 1 — Introduction
+sentence_range
+mechanism_focus
+question_focus
 ```
 
-一个 Session 可以完成；一篇 Paper 不存在永久“学习完成”。
+它不得被后续范围扩展覆盖。
 
-首次顺序 Session 的 `lookahead_policy` 应明确为：
+### current_scope_boundary
+
+当前真正可执行的 reveal gate，例如：
 
 ```text
-past-plus-current-only
+allowed owner_section_id
+stop-before next sibling section
+max_new_canonical_units
+explicit end locator
 ```
 
-并优先通过 Source access boundary 保证，而不是只依赖 Prompt 自律。
+每次新 Source reveal 前都必须检查。
+
+### revealed_position 与 view_position
+
+```text
+revealed_position
+= Session 已经知道到哪里，只能单调向前
+
+view_position
+= 当前回看位置，可以后退
+```
+
+回看旧句子不等于删除已经知道的未来内容。
+
+### status
+
+```text
+planned
+→ active
+↔ paused
+→ completed
+
+active / planned
+→ abandoned
+```
+
+- `completed` 只表示本 Session 目标达到；
+- `abandoned` 保留 Source identity、contamination 和 failure evidence；
+- `Session completed ≠ Paper done`。
+
+## ScopeAmendment
+
+表示 Session 范围的显式 durable 扩展。
+
+建议字段：
+
+```text
+amendment_id
+session_id
+old_boundary
+new_boundary
+reason
+amendment_point
+created_at
+```
+
+### 不变量
+
+- amendment 必须发生在越界 Source reveal 之前；
+- amendment 只改变后续 `current_scope_boundary`；
+- 原 `planned_scope` 和旧 boundary 历史保留；
+- 用户连续说“下一句”不自动构成 amendment。
 
 ## ReadingStep
 
-`ReadingStep` 表示一次 Source reveal 及其对应的学习更新。
+表示一次有界学习动作。
 
-最小 Source 引用：
+建议字段：
 
 ```text
+step_id
 session_id
-step_index
-revision_id
-source_unit_ref
-revealed_at
-```
-
-Derived 可以包括：
-
-```text
-literal_meaning
-relation_to_previous
-observed_cues
-current_problem_model
-new_constraints
-explicit_structure
-prediction
-actual_next_ref
-model_update
-knowledge_gaps
-```
-
-ReadingStep 不等于聊天消息。
-
-一次 AI 对话可以产生零个、一个或多个候选 Step；只有可恢复、可复用的学习状态才需要沉淀。
-
-## ReadingCheckpoint
-
-`ReadingCheckpoint` 是可恢复的 Session 状态，不是完整聊天记录。
-
-建议记录：
-
-```text
-session_id
-revision_id
-revealed_position
-current_source_unit_ref
 mode
-current_problem_model
-key_reasoning_links
-active_predictions
+input_source_refs
+current_source_ref
+source_observations
+derived_interpretations
+observed_relations
+current_problem_model_update
+explicit_reasoning_links
 knowledge_gaps
-questions_to_revisit
+prediction_state（可选）
+stop_boundary
+next_action
+created_at
+```
+
+### Source / Derived / Unknown
+
+正式 Step 必须能区分：
+
+```text
+Source Fact
+= 已揭示 Source 直接支持
+
+Derived Interpretation
+= 基于已揭示 Source 的有限推论
+
+Unknown
+= 当前 Source 尚未回答
+```
+
+### stop_boundary
+
+至少表达：
+
+```text
+current SourceUnitRef / TextLocator
+revealed_position
+next independent SourceUnit revealed? false
+scope state
 next_action
 ```
 
-第一版不要求所有字段必填。
+### 不变量
 
-真正必须稳定的是：
+- 一个“下一句 / 下一步”默认对应一个有界 ReadingStep；
+- 当前解释不能引用未来 SourceUnitRef；
+- 显式 reasoning link 必须可追溯到已揭示 Source，或保持 Derived 身份；
+- ReadingStep 不等于完整聊天 transcript。
+
+## OperationalRecoveryCheckpoint
+
+用于让 fresh conversation 安全恢复**操作位置和下一动作**。
+
+建议字段：
 
 ```text
-revision
-source binding
-revealed position
+checkpoint_id
+session_id
+paper_id
+revision_id
+source_binding
 mode
-source/derived boundary
-no-lookahead status
+lookahead_policy
+planned_scope
+current_scope_boundary
+revealed_position
+latest_source_ref
+style_profile_ref（可选）
+immutable_prediction_ref（可选）
+blocker / finding
+stop_boundary
+exactly_one_next_action
+created_at
 ```
 
-## Observation
-
-`Observation` 表示当前已揭示 Source 支持的可观察阅读发现。
-
-例如：
+它回答：
 
 ```text
-这句话明确提出了前一个方案的限制。
-这句话增加了一个性能约束。
-这句话从 problem statement 转入 design decision。
+当前绑定哪一个 Source？
+允许读到哪里？
+已经 reveal 到哪里？
+下一步唯一允许做什么？
 ```
 
-Observation 必须能指回当前或此前已揭示的 `SourceUnitRef`。
+它不需要保存完整历史解释。
 
-## ExplicitReasoningStructure
+## ReadingSessionLearningArtifact
 
-学习“思维链”时，本仓库保存的是显式、可训练结构，而不是私有 chain-of-thought。
+用于支持后续 Recall、Reconstruction 和 Retrospective。
 
-常见节点：
+建议字段：
 
 ```text
-cue
-fact
-assumption
-problem
-constraint
-alternative
-decision
-mechanism
-consequence
-trade-off
-evidence
-boundary
-update
+artifact_id
+session_id
+paper_id
+revision_id
+mode
+scope / revealed_range
+explicit_reasoning_links
+current_problem_model
+model_update_history（压缩）
+knowledge_gaps
+reasoning_gaps
+cue_level
+cue_recovery_result
+prediction_comparisons
+reconstruction_findings
+source_ref_summary
+created_at
 ```
 
-常见边：
+它应：
+
+- 明显小于完整 transcript；
+- 比 Operational Recovery Checkpoint 更丰富；
+- 保留可主动恢复和重建的关键连接；
+- 不把 Derived 内容写成 Source Fact。
+
+因此：
 
 ```text
-supports
-contrasts
-causes
-constrains
-motivates
-requires
-chooses
-implements
-produces
-limits
-validates
-updates
+OperationalRecoveryCheckpoint
+≠ ReadingSessionLearningArtifact
+≠ Primary Issue summary
+≠ full transcript
 ```
 
-第一版可以只在人类可读 Session checkpoint 中表达，不急于图数据库化。
+## PredictionRecord
 
-## Prediction
+表示下一 Source reveal 前冻结的预测。
 
-Prediction 是在下一 Source unit 揭示以前形成的候选下一步。
-
-建议记录：
+建议字段：
 
 ```text
-based_on_source_unit_ref
+prediction_id
+session_id
+based_on_position
 candidate_directions
-reasoning_basis
 confidence
-actual_next_ref
-comparison
+created_at
+actual_next_source_ref（揭示后追加）
+match_type（揭示后追加）
+what_was_missing（揭示后追加）
+model_update（揭示后追加）
 ```
 
-Prediction 不进入 Source truth。
+### 不变量
 
-如果 Prediction 在下一 Source 已经被读取以后才生成，必须标记为 retrospective，不能伪装成真正预测。
+- `prediction.created_at < actual_next_source.revealed_at`；
+- actual reveal 后只能追加 comparison，不能修改原预测；
+- Prediction 不能成为 Source Fact。
 
-## KnowledgeGap
+## KnowledgeGap / ReasoningGap
 
-表示阅读过程中暴露的缺口，例如：
+### KnowledgeGap
+
+描述术语、背景、数学或机制知识不足，例如：
 
 ```text
-术语不理解
-机制背景不足
-数学推导缺口
-无法解释作者为什么转向该方案
-能理解文字但无法预测下一步
+term-gap
+background-gap
+math-gap
+mechanism-gap
 ```
 
-KnowledgeGap 是训练计划输入，不代表论文错误。
+### ReasoningGap
+
+描述已知信息之间的连接无法主动生成，例如：
+
+```text
+relation-gap
+prediction-gap
+reconstruction-gap
+transfer-gap
+```
+
+重要区别：
+
+```text
+不知道一个定义
+≠
+知道定义但推不出 design pressure
+```
 
 ## TrainingResult
 
-用于 Recall / Reconstruction / Transfer。
+表示 Prediction、Recall、Reconstruction 或 Transfer 的一次训练证据。
 
-可观察维度可以包括：
+建议字段：
 
 ```text
-能否恢复问题
-能否恢复关键约束
-能否解释决策理由
-能否恢复机制链
-能否识别边界与 trade-off
-是否依赖提示
-是否能迁移到新问题
+training_result_id
+session_id
+mode
+source_scope
+prompt / cue level
+response summary
+comparison / review
+knowledge_gaps
+reasoning_gaps
+model_update
 ```
 
-不建议第一版制造复杂总分。
+### 特殊边界
 
-先记录“在哪个连接断掉”比一个 82 分更有价值。
+- Recall 展示答案后不能继续算无提示 Recall；
+- Reconstruction 必须记录 `closed-book / minimal-cue / outline-assisted / open-source`；
+- Transfer 必须使用真正的新问题；
+- Retrospective 必须显式声明已知后文。
 
 ## ExportCandidate
 
-阅读中可能产生值得进入下游仓库的内容：
+表示从 ReadingSession 中提炼、等待下游审核的候选知识。
+
+建议字段：
 
 ```text
-source fact candidate
-problem candidate
-mechanism candidate
-trade-off candidate
-engineering mapping candidate
-experiment question candidate
+export_candidate_id
+paper_id
+revision_id
+session_id
+source_refs
+claim
+claim_type
+source_observation
+derived_interpretation
+confidence / limitation
+target_repository
+review_status
 ```
 
-这些只是 `ExportCandidate`。
-
-正式进入其他仓库前必须经过目标仓库自己的 review / validator / gate。
-
-## GitHub Issue
-
-Primary Paper Issue 是工作流控制面。
-
-它负责串联：
+生命周期：
 
 ```text
-Paper identity reference
-Source / revision 状态
-ReadingSession summaries
-当前 blocker
-下一步 action
+Reading finding
+→ ExportCandidate
+→ explicit review
+→ target repository gate
+→ validated knowledge
 ```
 
-它不保存：
+下游拒绝或修正不改写历史 Source / Session。
 
-- 完整论文全文
-- 完整逐句 transcript
-- Source truth 的替代版本
-- 所有 ReadingStep 的长文本复制
+## GitHubIssueRef
 
-Primary Issue 可以长期作为 case 入口；具体 ReadingSession 自己有 completed 状态。
-
-## 核心身份不变量
+Issue 是外部控制面引用：
 
 ```text
-Paper identity ≠ PaperRevision
-PaperRevision ≠ Source file path
-PaperRevision ≠ reading-mcp document identity
-SourceUnitRef ≠ 句子文本内容本身
-SourceUnitRef ≠ AI 解释
-ReadingSession identity ≠ AI conversation id
-ReadingCheckpoint ≠ transcript
-Primary Issue number ≠ Paper identity
-Prediction ≠ Source fact
-ExportCandidate ≠ validated knowledge
+repository
+issue_number
+role = primary-paper | task | bug
+```
+
+### 不变量
+
+- 默认 `1 Paper → 1 Primary Issue`；
+- ReadingSession 不默认各建一个 Issue；
+- Issue number 不承担 Paper identity；
+- Issue summary 不替代 checkpoint / learning artifact；
+- Issue close 不等于 Paper learned。
+
+## 状态所有权
+
+```text
+Paper / Revision identity
+→ paper-reading-lab
+
+Canonical structure / SourceUnit / locator
+→ reading-mcp
+
+Session / scope / checkpoint / Profile
+→ paper-reading-lab
+
+Current workflow state
+→ GitHub Issue durable record
+
+Validated downstream knowledge
+→ target repository
+```
+
+## 核心不变量
+
+```text
+Paper、Revision、provider document、Session、Issue identity 分离。
+Session 必须绑定 Revision + Source provider。
+planned_scope 保留历史，current_scope_boundary 控制 reveal。
+revealed_position 单调向前。
+Profile 只控制解释，不控制 Source visibility。
+Checkpoint 支持续作，Learning Artifact 支持恢复理解。
+Source Fact、Derived Interpretation、Unknown 可区分。
+Prediction 先于 actual reveal。
+Session completed 不等于 Paper done。
 ```
