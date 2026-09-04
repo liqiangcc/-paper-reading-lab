@@ -1,223 +1,283 @@
-# 仓库边界
+# 架构边界
 
 ## 目的
 
-本文件定义 Paper Reading Lab 的职责边界，避免逐句阅读、知识沉淀、机制实验、论文存档和 AI 对话记录混成一个系统。
+Paper Reading Lab 只在职责边界清楚时才有可信的 Source-first 学习记录。
 
-## 本仓库负责什么
+本仓库不能同时充当：
 
-Paper Reading Lab 负责“学习过程”。
+- 论文下载器；
+- PDF 解析器；
+- Source truth；
+- 完整聊天数据库；
+- 最终知识仓库；
+- Agent runtime；
+- 自动评分系统。
 
-核心问题是：
+当前架构把这些职责分开。
 
-> 学习者如何在只看到当前与过去信息的条件下，逐步理解作者的论证、设计和研究思路，并通过反复提取、预测、重建和迁移把这些思路转化为自己的能力？
-
-因此本仓库重点管理：
-
-- Paper identity 与可追溯 Source locator
-- Section / Paragraph / SentenceUnit 顺序
-- ReadingSession
-- revealed position
-- 当前句与前文的显式关系
-- 当前问题模型的增量更新
-- Prediction / Recall / Reconstruction / Transfer 训练
-- knowledge gap 与 learner weakness
-- 可向下游输出的候选发现
-
-## 本仓库不负责什么
-
-### 不负责永久保存所有论文全文
-
-本仓库默认公开，不把“拥有完整 PDF/全文副本”当作阅读系统的必要条件。
-
-完整论文来源可以通过官方网页、作者主页、机构仓库、合法本地文件或已授权连接器访问。
-
-### 不负责把 AI 对话全文当作知识库
-
-ReadingSession 只沉淀可恢复、可复用的 checkpoint，不保存大量重复 transcript。
-
-### 不负责暴露模型私有 chain-of-thought
-
-学习对象是可观察、可教授的 reasoning structure，例如：
+## 总体关系
 
 ```text
-cue
-relation
-problem
-constraint
-decision
-mechanism
-trade-off
-evidence
-update
+Authoritative paper / approved PaperRevision
+                ↓
+          reading-mcp
+                ↓
+canonical structure / SourceUnit / TextLocator / source view
+                ↓
+       paper-reading-lab
+                ↓
+ReadingSession / checkpoint / reasoning finding / training result
+                ↓
+          ExportCandidate
+                ↓
+     target repository gate
+                ↓
+       validated knowledge
 ```
 
-不是模型不可观察的内部推理轨迹。
-
-### 不负责最终论文知识资产的完成门禁
-
-论文事实、机制链、语义、trade-off、evidence validation、knowledge card 等严格知识资产，由专门知识仓库治理。
-
-### 不负责真实系统机制的实验闭环
-
-运行时实验、raw evidence、claim falsification 和 mechanism learned 状态属于机制实验仓库。
-
-## 与 `classic-papers-system-design` 的分离
-
-`paper-reading-lab` 的核心状态是：
+控制面独立存在：
 
 ```text
-我读到哪里？
-当前理解是什么？
-当前能够预测什么？
-哪些思维连接还不稳定？
+GitHub Primary Paper Issue
+→ Source binding / Session summary / blocker / handoff / next_action
 ```
 
-`classic-papers-system-design` 的核心状态是：
+## `reading-mcp` 的职责
+
+`reading-mcp` 是首选 Source Adapter，负责：
+
+- 打开批准的本地或 HTTPS 文档；
+- 计算和返回 document / content / normalized identity；
+- 提供 canonical section hierarchy；
+- 在支持时提供 structure-only named-section boundary；
+- 枚举 canonical Paragraph / Sentence SourceUnit；
+- 返回 precise `TextLocator`；
+- 对 locator 做 exact re-read；
+- 在 identity 变化时返回 stale，而不是 fuzzy rebase；
+- 渲染 locator 绑定的 original source page 用于 fidelity review；
+- 暴露 source-preserving degradation 和 parsing limitation。
+
+`reading-mcp` 不负责：
+
+- 判断当前 Paper 的学习目标；
+- 选择 Session mode；
+- 决定 planned scope；
+- 记录 prediction / recall / reconstruction；
+- 保存长期 learning artifact；
+- 把 AI 解释升级为作者事实；
+- 管理 GitHub Task / PR 生命周期。
+
+## `paper-reading-lab` 的职责
+
+本仓库负责：
+
+- `Paper` 与 `PaperRevision` identity；
+- `PaperRevision ↔ reading-mcp document` binding；
+- Source readiness / segmentation readiness 的治理状态；
+- ReadingSession mode、scope、lookahead policy 和 lifecycle；
+- `planned_scope` 与 `current_scope_boundary`；
+- no-lookahead reveal gate；
+- ReadingStep、current problem model 和 reasoning links；
+- Operational Recovery Checkpoint；
+- ReadingSession Learning Artifact；
+- Explanation Profile；
+- Prediction-before-reveal；
+- Recall / Reconstruction / Transfer / Retrospective；
+- knowledge gap / reasoning gap；
+- Pilot retrospective；
+- ExportCandidate 与下游 gate 的关系。
+
+本仓库不负责平行生成自己的 Sentence identity。正式 `SourceUnitRef` 必须优先引用 Source provider identity。
+
+## GitHub Issue 的职责
+
+### Primary Paper Issue
+
+默认：
 
 ```text
-哪些论文事实已经复核？
-哪些分析已经独立 review？
-哪些结论达到知识资产门禁？
+1 Paper
+→ 1 Primary Paper Issue
+```
+
+它是长期控制面，负责：
+
+- Paper / Revision 摘要；
+- Source binding；
+- 当前和历史 ReadingSession 的可操作摘要；
+- blocker / finding；
+- scope amendment；
+- checkpoint / artifact reference；
+- 唯一或明确的 next action。
+
+它不是：
+
+- 论文全文；
+- canonical Source；
+- 每句长篇解释 transcript；
+- 完整 learning database；
+- Paper identity 本身。
+
+### Task / Bug Issue
+
+Source recovery、adapter defect、workflow hardening、Profile、Validator、governance 等具有独立边界的工作可以创建可关闭 Task / Bug Issue。
+
+Task Issue 不能取代 Primary Paper Issue。
+
+## `AGENTS.md`、Bootstrap、Skill 与 canonical docs
+
+```text
+AGENTS.md
+= repository routing + tool boundary + hard invariants
+
+docs/workflows/conversation-bootstrap.md
+= thin prompt → live state → Skill → next_action 的恢复算法
+
+.agents/skills/source-first-reading/SKILL.md
+= source-first ReadingSession 的有界执行程序
+
+canonical docs
+= method / domain / lifecycle / invariant truth
+```
+
+边界要求：
+
+- `AGENTS.md` 保持 pointer 与硬约束，不复制完整方法论；
+- Bootstrap 不保存具体 Paper locator；
+- Skill 不平行定义领域模型；
+- 动态 Session state 不写死在 Skill；
+- canonical docs 不承担实时调度状态；
+- Thin Prompt 只负责寻址。
+
+## Explanation Profile 的职责
+
+Explanation Profile 规定**已经 canonical reveal 的当前 SourceUnit如何解释和呈现**。
+
+它可以规定：
+
+- 原文 / 翻译 / 关系 / 增量的顺序；
+- Source Fact / Derived Interpretation / Unknown 的边界；
+- reasoning arrow 可追溯性；
+- L0 / L1 / L2 自适应解释深度；
+- locator 与 stop boundary 的呈现。
+
+它不能：
+
+- 扩大当前 Source 可见范围；
+- 允许读取未来 Source；
+- 改写 PaperRevision；
+- 替代 Source-first protocol；
+- 把历史 Session 静默切换到新 Profile version。
+
+## Checkpoint 与 Learning Artifact
+
+### Operational Recovery Checkpoint
+
+回答：
+
+```text
+当前绑定什么 Source？
+允许读到哪里？
+已经 reveal 到哪里？
+唯一下一动作是什么？
+```
+
+### ReadingSession Learning Artifact
+
+回答：
+
+```text
+这一 Session 建立了哪些 reasoning links？
+当前问题模型如何变化？
+哪些知识或推理连接不稳定？
+Recall / Reconstruction 表现如何？
 ```
 
 因此：
 
 ```text
-ReadingSession completed
-≠
-Paper analysis reviewed
-≠
-Knowledge asset done
+Operational Recovery Checkpoint
+≠ ReadingSession Learning Artifact
+≠ Primary Issue summary
+≠ full transcript
 ```
 
-阅读时产生的 finding 只能作为候选输入：
+## Raw Source、Projection 与 Original Source View
 
 ```text
-Reading finding
-    ↓
-显式 export / review
-    ↓
-classic-papers-system-design 中的正式事实或分析
+Raw / authoritative source
+→ 发布者原始 PDF / HTML / manuscript
+
+Normalized text
+→ 供结构化阅读的 projection
+
+Original source view
+→ locator 绑定的原始页面视觉证据
 ```
 
-不得因为 ReadingSession 中 AI 给出了一个漂亮解释，就直接升级成正式论文结论。
+Normalized text 适合顺序 reveal，但不自动证明：
 
-## 与 `systems-mechanism-lab` 的分离
+- 多栏视觉顺序；
+- Figure / Table 空间关系；
+- Equation 排版；
+- 页脚 / 脚注归属。
 
-阅读论文可能产生机制问题：
+遇到视觉语义时应回到 original source view；但看到整页不授权使用尚未 canonical reveal 的未来正文。
+
+## 下游知识仓库边界
+
+Reading finding 仍属于学习层：
 
 ```text
-作者声称机制 M 具有性质 P
+Source-grounded observation
++
+Derived interpretation
+        ↓
+ExportCandidate
+        ↓
+explicit review
+        ↓
+target repository gate
+        ↓
+validated knowledge
 ```
 
-这仍然只是论文语境中的 source claim 或阅读发现。
+下游仓库可以拒绝、修正或重新组织 ExportCandidate，但不能反写论文原文或历史 Session 当时看到的 Source。
 
-如果需要回答：
-
-> 在当前真实系统中 M 到底怎样运行？P 是否能被观察或证伪？
-
-应进入 `systems-mechanism-lab`：
+## 首次阅读与 Retrospective
 
 ```text
-paper reading
-→ mechanism question
-→ hypothesis
-→ experiment
-→ raw evidence
-→ observation / inference
-→ claim update
-```
+first-pass no-lookahead
+= past + current Source only
 
-Paper Reading Lab 不把“作者写了什么”自动转换成“现实系统永远如此”。
-
-## Source 与 Derived 边界
-
-### Source
-
-Source 层只保存或引用来源本身可以证明的内容：
-
-- 论文身份
-- 版本
-- 来源位置
-- section / page / paragraph locator
-- 原始句子或允许范围内的短引用
-- 图表 / 公式 locator
-
-### Derived
-
-以下全部属于 Derived：
-
-- 句子切分结果
-- 语义解释
-- 句间关系
-- 问题树
-- 推理结构
-- 预测
-- 作者意图判断
-- 设计 rationale
-- trade-off 分析
-- 回顾总结
-- 学习者表现
-
-Derived 可以修改、深化或推翻；Source 事实不能因为 Derived 变化而被悄悄改写。
-
-## 首次阅读与回顾阅读边界
-
-首次顺序阅读必须满足：
-
-```text
-past + current only
-```
-
-已经读完整篇后的第二遍，可以使用全文，但必须标记为：
-
-```text
 retrospective
+= 已知后文后显式回顾
 ```
 
-不能把“知道结局后的解释”伪装成“当时只看到这里就能得出的判断”。
+两者必须分开。已经发生 future Source contamination 的 Session 不能继续伪装成 clean first-pass。
 
-## 预测与作者事实的边界
+## 不属于当前仓库的能力
 
-Prediction 记录的是学习者或 AI 在当前信息下认为“下一步合理可能是什么”。
-
-它不是作者事实。
-
-必须区分：
-
-```text
-predicted direction
-actual next source
-comparison
-```
-
-预测失败也有学习价值，因为它暴露当前问题模型和作者模型之间的差异。
-
-## 生命周期边界
-
-可以完成的是：
-
-- 一个 ReadingSession
-- 一次 Section pass
-- 一次 Recall test
-- 一次 Reconstruction
-- 一次 Transfer exercise
-
-不能永久完成的是：
-
-- “这篇论文已经没有继续学习价值”
-
-新知识、新目标、新版本、新问题都可以触发下一次阅读。
+- 通用 Agent 调度 / Worker registry；
+- 浏览器或终端 runtime；
+- PDF parser 实现；
+- OCR 引擎；
+- GitHub provider 本身；
+- 自动真值判定；
+- 自动风格审美评分；
+- 通用知识图谱；
+- 未经 review 的跨仓库自动发布。
 
 ## 核心不变量
 
 ```text
-Source 不被 Derived 覆盖。
-首次阅读不读取未来。
-阅读完成不等于知识资产完成。
-论文 claim 不等于现实系统 claim。
-Prediction 不等于作者事实。
-AI transcript 不等于学习资产。
-可恢复 checkpoint 比完整聊天记录更重要。
+reading-mcp 是 paper Source truth。
+paper-reading-lab 是学习与 Session 层。
+GitHub Issue 是控制面。
+AGENTS / Bootstrap / Skill 是执行入口，不是 Source。
+Explanation Profile 不能扩大 Source 可见范围。
+Checkpoint 与 Learning Artifact 分工不同。
+Reading finding 不自动成为正式知识。
+工具或 identity 冲突时 fail closed。
 ```
