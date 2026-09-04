@@ -8,258 +8,76 @@
 main = aa20d2066c754f3cec11a9f1c48a6852b6215f13
 ```
 
-覆盖：
-
-- 根级 README / AGENTS；
-- `.agents/skills/source-first-reading`；
-- architecture / domain / integration / source / learning / workflow / validation / pilot 文档；
-- Kafka / Raft Primary Issue 的 control-plane 状态；
-- 已合并 Profile / governance work；
-- Markdown link、Skill front matter、invariant id、required-file 等基础校验。
-
-本审查不继续 reveal Kafka / Raft Source，不修改 `reading-mcp`，不把历史 finding 改写成成功。
+覆盖根级治理、全部 canonical 文档、Source-First Reading Skill、Kafka / Raft Primary Issue 控制面，以及轻量 repository consistency checks。本审查不继续 reveal 论文 Source，不修改 `reading-mcp`，不改写历史 finding。
 
 ## 总体结论
 
-仓库核心机制已经由真实 Pilot 支持，但多轮修复分别落在不同文档和 PR 后，出现了典型的跨文档模型漂移：
+仓库核心机制已经由真实 Pilot 支持，但多轮 workflow、Profile、AGENTS 和 Skill 修复分别合并后，出现了跨文档模型漂移：
 
 ```text
-workflow 已 harden
-+
-Profile 已加入
-+
-AGENTS / Skill 已加入
-
-但
-
-root overview / domain / adapter / source policy
-没有同步成为同一套当前模型
+workflow / Profile / Agent governance 已演进
+但 root overview / domain / adapter / source policy 未同步
 ```
 
-本轮以“稳定入口、领域一致、Source Adapter 边界、动态状态归属、轻量自动检查”为主线修复。
+本轮以稳定入口、领域一致、Source Adapter 边界、动态状态归属和轻量自动检查为主线修复。
 
-## Finding 1 — 稳定文档承担了瞬时 live state
+## 主要 finding 与修复
 
-### 现象
+### 1. 稳定文档承担瞬时 live state
 
-静态 README / docs navigation 曾持续写入：
+旧 README / 导航曾写死“当前 Issue / 当前下一步”，而 Issue comments 已推进。
 
-- 当前正在执行哪个 Paper / Issue；
-- 下一步是某个具体 Session；
-- 已完成 Pilot 阶段仍被描述为未来动作。
+修复：README 只保存稳定方法入口；实时状态必须读取对应 Issue 的最新 durable record；Pilot 历史与 closure 分开。
 
-### 风险
+### 2. Domain model 落后
 
-```text
-Issue comments 已推进
-但 README 未同步
-→ fresh worker 从静态文档恢复错误 current state
-```
-
-### 修复
-
-- 根 README 改为稳定仓库入口与方法概览；
-- `docs/README.md` 只保存 canonical navigation；
-- 明确当前 live state 必须读取对应 Issue 的最新 durable record；
-- Pilot 历史状态进入独立 closure 文档。
-
-## Finding 2 — Domain model 未同步 workflow hardening
-
-workflow 已加入：
-
-- `planned_scope`；
-- `current_scope_boundary`；
-- scope amendment；
-- Operational Recovery Checkpoint；
-- ReadingSession Learning Artifact；
-- Explanation Profile；
-- stop boundary。
-
-旧 `docs/domain/model.md` 仍主要表达早期 Paper / Session / checkpoint 模型。
-
-### 修复
-
-Domain model 统一为：
+旧模型未完整覆盖：
 
 ```text
-Paper
-PaperRevision
-ReadingSourceBinding
-SourceUnitRef
-ExplanationProfileRef
-ReadingSession
+planned_scope
+current_scope_boundary
 ScopeAmendment
-ReadingStep
+ExplanationProfileRef
 OperationalRecoveryCheckpoint
 ReadingSessionLearningArtifact
-PredictionRecord
-KnowledgeGap / ReasoningGap
-TrainingResult
-ExportCandidate
+stop_boundary
 ```
 
-并明确：
+修复：同步 `docs/domain/model.md`、ReadingSession、lifecycle、Issue workflow 和 invariants。
 
-```text
-Paper identity
-≠ Revision identity
-≠ provider document identity
-≠ Session identity
-≠ Issue identity
-```
+### 3. Source Adapter / Source Policy 落后
 
-## Finding 3 — ReadingSession 仍使用早期单一 `scope / checkpoint` 语义
+真实 Kafka / Raft 路径已经验证：
 
-### 风险
-
-```text
-planned_scope = history
-current_scope_boundary = executable gate
-```
-
-如果两者不分开，Agent 可能把原计划覆盖，或在 reveal 后才补范围。
-
-单一 checkpoint 还会把“恢复下一动作”和“恢复学习模型”混在一起。
-
-### 修复
-
-`docs/learning/reading-sessions.md` 统一为：
-
-- planned scope / executable boundary；
-- reveal 前 scope gate；
-- durable scope amendment；
-- Profile version binding；
-- Operational Recovery Checkpoint；
-- ReadingSession Learning Artifact；
-- Source / Derived / Unknown；
-- explicit stop boundary。
-
-## Finding 4 — reading-mcp integration 落后于已验证能力
-
-早期 adapter 文档没有完整覆盖后来在真实 Raft / Kafka 路径中验证的：
-
-- structure-only named-section hierarchy；
-- no-body boundary preflight；
+- structure-only named-section boundary；
+- future-body lexical search 会污染 no-lookahead；
 - original source view；
 - canonical unit 可能包含多个 surface sentences；
-- current capability 必须实际 invocation；
-- lexical search 可能造成 future-body leakage。
+- capability 必须靠当前实际 invocation；
+- stale locator 必须 fail closed。
 
-### 修复
+修复：更新 `docs/integrations/reading-mcp.md` 和 `docs/source/source-policy.md`。
 
-`docs/integrations/reading-mcp.md` 更新为：
+### 4. AGENTS / Bootstrap / Skill 重复
 
-```text
-structure-only boundary
-→ persist executable scope
-→ canonical exactly-one reveal
-→ exact locator re-read
-→ optional current-source visual fidelity
-→ stop
-```
-
-并明确 stale / search / visual / retry 边界。
-
-## Finding 5 — Source policy 未同步视觉 Source 与安全 boundary evidence
-
-### 修复
-
-`docs/source/source-policy.md` 增加：
-
-- raw / normalized / OCR / original source view 身份分离；
-- visual observation 与 text Source Fact 分离；
-- named-section boundary 只允许 structure-only metadata 或预验证 artifact；
-- lexical future snippet 不能作为 clean no-lookahead preflight；
-- public repo 优先持久化 locator，而不是全文。
-
-## Finding 6 — AGENTS / Bootstrap / Skill 重复度过高
-
-初版治理正确建立了三层，但 Skill / bootstrap 重复较多 canonical protocol prose。
-
-### 风险
+修复后职责收敛为：
 
 ```text
-同一规则存在多份
-→ 后续只改其中一份
-→ governance drift
+AGENTS.md = routing + hard invariants
+conversation-bootstrap.md = live-state recovery algorithm
+source-first-reading/SKILL.md = one bounded action procedure
+canonical docs = detailed method truth
 ```
 
-### 修复
+### 5. Pilot 计划与 closure 混合
 
-```text
-AGENTS.md
-= routing + hard invariants
+修复：`first-pilot.md` 明确为 historical execution protocol；新增 `first-pilot-closure.md`，保留 PASS / PARTIAL / FAIL matrix、scope drift、checkpoint limitation 和 completed hardening。
 
-conversation-bootstrap.md
-= live-state recovery algorithm
+### 6. Primary Issue body 陈旧
 
-source-first-reading/SKILL.md
-= one bounded action procedure
+Kafka #2 和 Raft #1 的 body 已根据最新 durable comments 重写为稳定 Paper / Revision 摘要、current Session summary、historical warning、durable-record rule 和当前授权边界。完整历史继续留在 comments。
 
-canonical docs
-= detailed method truth
-```
-
-Skill 保留执行步骤和 failure conditions，减少领域定义复制。
-
-## Finding 7 — Pilot 计划与 closure 混在一起
-
-`first-pilot.md` 同时像原始计划又像当前入口，容易把旧范围和 next action 理解成 live state。
-
-### 修复
-
-- `first-pilot.md` 改为明确 historical execution protocol；
-- 新增 `first-pilot-closure.md`；
-- 保留 PASS / PARTIAL / FAIL matrix、scope drift、checkpoint limitation、Issue drift 和 completed hardening；
-- 不改写原 Pilot 历史。
-
-## Finding 8 — Primary Issue body 落后于 durable comments
-
-### Kafka #2
-
-旧 body 仍描述 Source acquisition / Session A 起点；最新 durable state 已经是：
-
-- first Pilot closure completed with findings；
-- workflow hardening completed；
-- Profile acceptance completed；
-- current locator 已推进；
-- acceptance one-unit scope consumed；
-- next SourceUnit 需要新的显式 authorization。
-
-### Raft #1
-
-旧 body 仍描述 waiting for Source binding；最新 durable state已经是：
-
-- earlier contaminated Session abandoned；
-- named-section boundary gap fixed upstream；
-- fresh strict Session A active on new normalized identity；
-- Introduction SourceUnits 1–4 revealed；
-- current boundary remains Section 1 only。
-
-### 修复
-
-两个 Primary Issue body 已重写为：
-
-```text
-stable Paper / Revision identity
-current durable summary
-historical warning
-where to find latest checkpoint
-current allowed next action
-```
-
-完整历史继续保留在 comments。
-
-## Finding 9 — 缺少最小 repository consistency gate
-
-多轮合并后已真实出现：
-
-- 导航和 current-state 漂移；
-- canonical docs 新增但旧入口未同步；
-- domain / workflow terminology 不一致；
-- concurrent docs PR 对同一 README 有重叠风险。
-
-### 修复
+### 7. 缺少确定性一致性 Gate
 
 新增：
 
@@ -268,42 +86,29 @@ scripts/validate_repository.py
 .github/workflows/repository-consistency.yml
 ```
 
-只检查确定性结构事实：
+检查：
 
-- required files；
+- required governance files；
 - Markdown local links；
 - Skill front matter；
-- duplicate invariant ids；
-- canonical navigation entries；
-- trailing whitespace / code fence；
-- stable docs 中明显旧 live-state 文案。
+- invariant id 唯一性及关键 id；
+- canonical navigation；
+- trailing whitespace / code fences；
+- stable docs 中明显旧 live-state literal。
 
-不进行：
+第三方 GitHub Actions 使用 immutable commit SHA 固定。Validator 不做 LLM-as-judge，不替代 Source provider 或人工语义 review。
 
-- LLM-as-judge；
-- 内容真值评分；
-- Source identity 替代；
-- 自动 Session schema migration。
-
-## Finding 10 — 合并后 topic branches 仍存在
-
-已合并 Profile / governance topic branches 在远端仍可见。
-
-当前 MCP surface 没有删除 Git ref 的写操作，本轮不使用未授权 shell/API 绕过。它们是非阻塞 hygiene finding；后续由具备 branch-delete capability 的维护动作清理。
-
-## 未修改的历史事实
-
-以下内容继续保留：
+## 必须保留的历史事实
 
 - Kafka Pilot scope discipline = FAIL；
 - Recall / Reconstruction = PARTIAL；
 - transient runtime / serialization finding；
 - Raft 第一个 strict Session 因 boundary-preflight lookahead contamination 被 abandoned；
-- Profile v0.1 fresh acceptance 是真实 L2 fixture，不单独证明所有 depth class。
+- Profile v0.1 acceptance 是真实 L2 fixture，不单独证明所有 depth class。
 
-## Validation result
+## Validation
 
-在审查分支的 fresh clone 中实际执行：
+在最终审查分支的 fresh clone 中实际执行：
 
 ```text
 python3 -m py_compile scripts/validate_repository.py
@@ -316,34 +121,20 @@ python3 scripts/validate_repository.py
 repository consistency validation: PASS
 ```
 
-检查覆盖当前 Markdown local links、required governance files、Skill front matter、invariant ids、navigation、formatting 和禁止的明显旧 live-state literal。
+这只证明脚本定义的确定性 repository checks；PR 上的 GitHub Actions 会再次执行相同检查。
 
-GitHub Actions 在 PR 上再次运行同一检查。
+## 剩余非阻塞 finding
 
-## 人工 review 重点
-
-1. stable docs 不再承载瞬时 Session state；
-2. Domain / Session / lifecycle / Issue 术语一致；
-3. Skill 没有扩大 Source visibility；
-4. Primary Issue body 与 latest comments 不冲突；
-5. Pilot history 没有被重写；
-6. lightweight validator 没有演变成复杂 automation。
+已合并的 Profile / governance topic branches 仍存在。当前 MCP surface 没有删除 Git ref 的写能力，本轮不绕过权限使用未授权 API；后续由具备 branch-delete capability 的维护动作清理。
 
 ## Completion 语义
 
 本审查完成表示：
 
 ```text
-截至该 Candidate SHA
-canonical docs / Agent entry / Issue control summary
-重新对齐
-+
-基础结构 drift 有自动检查
+截至本 Candidate SHA
+canonical docs / Agent entry / Issue control summary 已重新对齐
+并且基础结构 drift 有确定性检查
 ```
 
-不表示：
-
-- 所有论文已读完；
-- 所有 Session mode 已充分验证；
-- reading-mcp 全部格式无缺陷；
-- 仓库永远不再需要审查。
+不表示所有论文读完、所有 Session mode 已充分验证，或仓库以后不再需要审查。
