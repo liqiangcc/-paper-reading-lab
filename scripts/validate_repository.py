@@ -61,13 +61,12 @@ FORBIDDEN_STALE_LITERALS = (
     "Issue #1\n→ reading-mcp 打开 Raft",
 )
 
+# Deliberately supports ordinary inline links only. Reference-style links are
+# not currently used by this repository and can be added when a real need
+# appears. Image links are checked separately.
 MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
 IMAGE_LINK_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
 INVARIANT_RE = re.compile(r"^###\s+(I-\d{2})\b", re.MULTILINE)
-
-
-def read_text(relative: str) -> str:
-    return (ROOT / relative).read_text(encoding="utf-8")
 
 
 def markdown_files() -> list[Path]:
@@ -83,11 +82,13 @@ def normalize_link_target(raw: str) -> str:
     target = raw.strip()
     if target.startswith("<") and target.endswith(">"):
         target = target[1:-1].strip()
-    # Markdown allows an optional quoted title after the URL.
-    if " \"" in target:
-        target = target.split(" \"", 1)[0].strip()
-    elif " '" in target:
-        target = target.split(" '", 1)[0].strip()
+
+    # Markdown permits an optional quoted title after the destination.
+    for delimiter in (' "', " '"):
+        if delimiter in target:
+            target = target.split(delimiter, 1)[0].strip()
+            break
+
     target = target.split("#", 1)[0].split("?", 1)[0]
     return unquote(target)
 
@@ -109,6 +110,7 @@ def validate_required_files(errors: list[str]) -> None:
 
 
 def validate_markdown_links(errors: list[str]) -> None:
+    root = ROOT.resolve()
     for path in markdown_files():
         text = path.read_text(encoding="utf-8")
         targets = MARKDOWN_LINK_RE.findall(text) + IMAGE_LINK_RE.findall(text)
@@ -116,21 +118,19 @@ def validate_markdown_links(errors: list[str]) -> None:
             target = normalize_link_target(raw)
             if is_external_or_anchor(target):
                 continue
-            # Skip templates or shell-like placeholders, which are not links.
+            # Skip explicit templates; they are examples, not file links.
             if any(marker in target for marker in ("${", "{{", "<owner>", "<repo>")):
                 continue
             resolved = (path.parent / target).resolve()
             try:
-                resolved.relative_to(ROOT.resolve())
+                resolved.relative_to(root)
             except ValueError:
                 errors.append(
                     f"local link escapes repository: {path.relative_to(ROOT)} -> {raw}"
                 )
                 continue
             if not resolved.exists():
-                errors.append(
-                    f"broken local link: {path.relative_to(ROOT)} -> {raw}"
-                )
+                errors.append(f"broken local link: {path.relative_to(ROOT)} -> {raw}")
 
 
 def parse_front_matter(text: str) -> dict[str, str]:
@@ -138,9 +138,12 @@ def parse_front_matter(text: str) -> dict[str, str]:
     if not lines or lines[0].strip() != "---":
         return {}
     try:
-        end = next(index for index, line in enumerate(lines[1:], 1) if line.strip() == "---")
+        end = next(
+            index for index, line in enumerate(lines[1:], 1) if line.strip() == "---"
+        )
     except StopIteration:
         return {}
+
     values: dict[str, str] = {}
     for line in lines[1:end]:
         if not line.strip() or line.lstrip().startswith("#") or ":" not in line:
@@ -173,7 +176,26 @@ def validate_invariant_ids(errors: list[str]) -> None:
         if invariant_id in seen:
             errors.append(f"{relative}: duplicate invariant id {invariant_id}")
         seen.add(invariant_id)
-    required = {"I-01", "I-05", "I-11", "I-21", "I-30", "I-40", "I-44", "I-55", "I-58", "I-59"}
+
+    required = {
+        "I-01",
+        "I-05",
+        "I-11",
+        "I-15",
+        "I-21",
+        "I-28",
+        "I-30",
+        "I-40",
+        "I-44",
+        "I-49",
+        "I-55",
+        "I-58",
+        "I-59",
+        "I-90",
+        "I-91",
+        "I-92",
+        "I-93",
+    }
     missing = sorted(required.difference(seen))
     if missing:
         errors.append(f"{relative}: missing expected invariant ids: {', '.join(missing)}")
