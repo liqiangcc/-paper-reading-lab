@@ -33,7 +33,6 @@ mode
 scope
 lookahead_policy
 revealed_position
-style_profile
 ```
 
 其中：
@@ -42,7 +41,8 @@ style_profile
 - `scope` 限定本次是全文、章节、小节或某个问题范围。
 - `lookahead_policy` 明确是否是首次 no-lookahead 阅读。
 - `revealed_position` 是可恢复阅读状态。
-- `style_profile` 在 Session 采用正式解释 Profile 时，固定解释风格的 machine identity 与版本。
+
+采用正式 Explanation Profile 的 Session 还必须绑定 `style_profile`，用于固定解释风格的 machine identity 与版本。
 
 ## Session Mode
 
