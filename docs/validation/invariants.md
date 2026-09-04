@@ -271,6 +271,19 @@ paper.done = true
 
 正式 Step / checkpoint 应是可恢复、可复用的结构化学习状态。
 
+### I-44 ReadingStep 必须保存 precise locator 与 stop boundary
+
+正式增量解释 Step 至少必须保存：
+
+```text
+current SourceUnitRef / TextLocator
+revealed_position
+stop_boundary
+next_action
+```
+
+`stop_boundary` 必须能够说明本次输出结束时尚未 reveal 下一独立 SourceUnit；仅保存一段解释文本不能证明 no-lookahead 在哪里停止。
+
 ## GitHub Issue 不变量
 
 ### I-45 一个 Paper 一个 Primary Issue
@@ -325,6 +338,75 @@ confirmed source wording
 `reading_document_id` 是阅读基础设施里的文档身份，不替代 `revision_id`。
 
 两者必须通过 `ReadingSourceBinding` 显式关联。
+
+## Explanation Profile 不变量
+
+### I-54 Profile 不能扩大 no-lookahead 可见范围
+
+Explanation Profile 只规定当前 SourceUnit 的解释和呈现方式。
+
+它必须继续服从 I-22 / I-23：当前解释不能引用未来 SourceUnitRef，Profile 也不能授权提前读取未来 Source。
+
+### I-55 显式 reasoning arrow 必须可追溯
+
+任何正式 ReadingStep 中的显式关系：
+
+```text
+A
+→
+B
+```
+
+必须能够追溯到：
+
+- 当前或此前已揭示 Source；或
+- 明确标记为 Derived 的有限推论。
+
+无法说明依据的箭头不能作为已验证 reasoning link 持久化。
+
+### I-56 Source Fact、Derived Interpretation 与 Unknown 必须可区分
+
+Profile 输出不能把：
+
+```text
+原文直接事实
+模型有限推论
+当前尚未回答的问题
+```
+
+混成同一类确定结论。
+
+### I-57 解释深度必须允许自适应
+
+结构句、标题、图注或术语说明不得被强制包装成不存在的深层机制。
+
+Profile 可以定义 L0 / L1 / L2 等深度，但：
+
+```text
+风格稳定
+≠
+每句固定长度
+```
+
+这一项第一版主要依赖人工 review，不宜由简单字数阈值自动评分。
+
+### I-58 Explanation Profile 必须版本化
+
+正式 Profile 至少需要：
+
+```text
+profile_id
+version
+canonical source path
+```
+
+只保存一个可变文件名或在 Prompt 中复制风格文本，不能承担可恢复的 Profile identity。
+
+### I-59 Session 恢复不得静默切换 Profile version
+
+历史 Session 继续绑定开始时使用的 Profile version。
+
+如果需要切换版本，必须新建 Session，或显式记录 transition、切换位置和影响；不得因为 canonical 文档更新而重写旧 ReadingStep 的解释契约。
 
 ## Training 不变量
 
@@ -390,6 +472,8 @@ Reading finding
 - reading provider binding
 - SourceUnitRef presence
 - session checkpoint completeness
+- precise locator + stop boundary presence
+- bound Explanation Profile 的 id / version / source presence
 - Primary Issue cardinality
 
 ### Phase 2：时序 Validator
@@ -400,6 +484,7 @@ Reading finding
 - prediction before reveal
 - completed / paused transition 合法
 - contamination 标记一致
+- Profile transition 显式且不改写历史 Step
 
 ### Phase 3：Source identity Validator
 
@@ -413,6 +498,8 @@ Reading finding
 ### Phase 4：引用 Validator
 
 检查 no-lookahead Session 的显式 Source references 是否越过 revealed position。
+
+对于结构化保存的 reasoning links，还可以检查其 SourceUnitRef 是否位于已揭示范围；L0 / L1 / L2 深度是否自然仍由人工 review 判断。
 
 ### Phase 5：跨仓库 Export Validator
 
