@@ -42,6 +42,8 @@ revealed_position
 - `lookahead_policy` 明确是否是首次 no-lookahead 阅读。
 - `revealed_position` 是可恢复阅读状态。
 
+采用正式 Explanation Profile 的 Session 还必须绑定 `style_profile`，用于固定解释风格的 machine identity 与版本。
+
 ## Session Mode
 
 ### Learning
@@ -139,6 +141,54 @@ mechanism_focus
 
 是否真的可用。
 
+## Explanation Profile binding
+
+Source-first 协议规定允许读取什么以及何时允许读取；Explanation Profile 规定已经取得当前 SourceUnit 后怎样解释和呈现。
+
+采用正式 Profile 的 Session 建议绑定：
+
+```yaml
+style_profile:
+  id: source-first-incremental-explanation
+  version: v0.1
+  source: docs/learning/incremental-explanation-profile.md
+
+style_overrides:
+  language: zh-CN
+  depth: adaptive
+```
+
+其中：
+
+- `id + version` 共同标识一个具体 Profile；
+- `source` 指向 canonical Profile 文档；
+- `style_overrides` 只能在 Profile 允许范围内调整语言或深度，不能取消 MUST 规则；
+- 未绑定正式 Profile 的历史 Session 不应被事后假定使用了当前最新 Profile。
+
+### Profile version 不能静默切换
+
+Session 开始后，历史 ReadingStep 和 checkpoint 继续绑定开始时采用的 Profile version。
+
+如果希望采用新版本，应：
+
+- 新建 Session；或
+- 显式记录 Profile transition、切换位置和影响。
+
+不得因为仓库中的 Profile 文件更新，就把旧 checkpoint 静默解释为新版本。
+
+### Handoff 只引用 Profile identity
+
+Issue comment 或 `[SESSION HANDOFF]` 应保存：
+
+```text
+profile id
+profile version
+canonical source path
+必要的 style overrides
+```
+
+不应复制一份越来越长的 Style Prompt。Fresh conversation 应读取 canonical Profile，再结合 checkpoint 恢复风格。
+
 ## revealed position
 
 首次顺序 Session 中：
@@ -177,8 +227,11 @@ new_constraints
 observed_relations
 explicit_structure
 prediction_state
+style_profile
+style_overrides
 knowledge_gaps
 open_questions
+stop_boundary
 next_action
 ```
 
@@ -194,6 +247,8 @@ next_action
 保存 checkpoint 的目标是：
 
 > 换一个会话以后，仍然可以在不偷看未来的前提下继续学习。
+
+其中 `stop_boundary` 应明确本次 ReadingStep 已经完成到哪里，以及下一独立 SourceUnit 尚未 reveal；它与 precise locator 一起构成可审计的停止位置。
 
 ## Observation 与 Interpretation
 
@@ -334,5 +389,7 @@ Session 必须绑定 PaperRevision。
 首次 Session 的 revealed position 只能向前。
 Prediction 必须先于 actual reveal。
 Checkpoint 可以恢复学习，但不等于 transcript。
+正式 Explanation Profile 必须绑定 id + version。
+Session 恢复不得静默切换 Profile version。
 Retrospective 必须显式标记。
 ```
