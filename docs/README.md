@@ -2,6 +2,32 @@
 
 Paper Reading Lab 当前文档按“先边界、再领域、再 Source Adapter、再学习协议、最后执行与验证”的顺序阅读。
 
+## Agent / Fresh conversation 入口
+
+面向 GPT / Codex / Agent 的仓库治理入口：
+
+```text
+../AGENTS.md
+→ 仓库长期 Agent 规则、工具边界、Skill 路由和 fail-closed 不变量
+
+workflows/conversation-bootstrap.md
+→ 薄入口 Prompt 如何从 live Issue / checkpoint / handoff 恢复执行状态
+
+../.agents/skills/source-first-reading/SKILL.md
+→ “下一句 / 下一步 / resume ReadingSession” 的可执行 Source-First Reading Skill
+```
+
+推荐 fresh conversation 入口保持很薄：
+
+```text
+repo + Issue
+→ 读取 AGENTS.md
+→ 按 bootstrap 路由 Skill
+→ 从 durable state 恢复
+```
+
+不要把 locator、Profile 全文、历史 transcript 或整套 Source-First 规则重复塞进入口 Prompt。
+
 ## 推荐阅读顺序
 
 1. [`../README.md`](../README.md)
