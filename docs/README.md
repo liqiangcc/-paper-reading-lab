@@ -158,6 +158,10 @@ invariants.md
 
 已经有重复性证据的基础治理检查可进入轻量 Validator，但不能替代 Source provider、人工 review 或真实 Pilot。
 
+## 有界学习资产案例
+
+[Kafka 三单元 Learning Artifact](learning/artifacts/kafka-2011/transfer-fixture-v0-1.md) 与 [操作恢复检查点](learning/artifacts/kafka-2011/transfer-fixture-recovery.md) 展示学习模型和操作状态的分离；它们是固定范围的 Derived 案例，不是实时调度入口或正式论文结论。候选与验收进度读取关联 Task 的最新 durable record。
+
 ## 本地校验
 
 ```bash
