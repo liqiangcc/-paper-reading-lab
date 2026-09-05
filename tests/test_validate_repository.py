@@ -118,6 +118,12 @@ class RepositoryChecks(unittest.TestCase):
     def test_explicit_anchor(self) -> None:
         self.assertEqual([], self.links('<a id="custom"></a>\n[x](#custom)\n'))
 
+    def test_inline_anchor_example_is_not_an_anchor(self) -> None:
+        self.assertIn("broken local anchor", self.links('Use `<a id="fake"></a>`.\n[x](#fake)\n')[0])
+
+    def test_heading_in_multiline_inline_code_is_not_an_anchor(self) -> None:
+        self.assertIn("broken local anchor", self.links('Use `example\n# Fake\nend`.\n[x](#fake)\n')[0])
+
     def test_external_links_are_not_fetched(self) -> None:
         self.assertEqual([], self.links("[x](https://invalid.example/no#heading)\n[x](mailto:x@y.test)\n"))
 

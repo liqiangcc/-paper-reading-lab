@@ -127,9 +127,12 @@ def heading_anchors(text: str) -> set[str]:
     renderer-specific extensions are not presented as fully validated.
     """
     visible, _ = visible_markdown(text, mask_inline=False)
+    prose, _ = visible_markdown(text)
     anchors: set[str] = set()
     generated: set[str] = set()
     for match in HEADING_RE.finditer(visible):
+        if not HEADING_RE.match(prose, match.start()):
+            continue
         title = re.sub(r"[ \t]+#+[ \t]*$", "", match[1])
         title = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", title)
         title = re.sub(r"<[^>]+>", "", title)
@@ -142,7 +145,7 @@ def heading_anchors(text: str) -> set[str]:
             candidate = f"{slug}-{suffix}"
         generated.add(candidate)
     anchors.update(generated)
-    anchors.update(EXPLICIT_ANCHOR_RE.findall(visible))
+    anchors.update(EXPLICIT_ANCHOR_RE.findall(prose))
     return anchors
 
 
