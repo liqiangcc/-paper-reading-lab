@@ -8,6 +8,7 @@ GitHub Issue state.
 
 from __future__ import annotations
 
+import html
 import re
 import sys
 from pathlib import Path
@@ -16,6 +17,9 @@ from urllib.parse import unquote
 ROOT = Path(__file__).resolve().parents[1]
 
 REQUIRED_FILES = (
+    "scripts/validate_repository.py",
+    "tests/test_validate_repository.py",
+    ".github/workflows/repository-consistency.yml",
     "README.md",
     "AGENTS.md",
     ".agents/skills/source-first-reading/SKILL.md",
@@ -61,12 +65,88 @@ FORBIDDEN_STALE_LITERALS = (
     "Issue #1\n→ reading-mcp 打开 Raft",
 )
 
-# Deliberately supports ordinary inline links only. Reference-style links are
-# not currently used by this repository and can be added when a real need
-# appears. Image links are checked separately.
-MARKDOWN_LINK_RE = re.compile(r"(?<!!)\[[^\]]*\]\(([^)]+)\)")
-IMAGE_LINK_RE = re.compile(r"!\[[^\]]*\]\(([^)]+)\)")
+# This is a bounded repository check, not a complete CommonMark renderer.
+# Supported syntax and deliberately unverified cases are documented in
+# docs/validation/repository-checks.md.
+MARKDOWN_LINK_RE = re.compile(
+    r"!?\[[^\]\n]*\]\(\s*"
+    r"(<[^>\n]*>|(?:\\.|[^()\s]|\([^()\n]*\))+)"
+    r"(?:[ \t]+(?:\"[^\"]*\"|'[^']*'))?[ \t]*\)"
+)
 INVARIANT_RE = re.compile(r"^###\s+(I-\d{2})\b", re.MULTILINE)
+FENCE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+INLINE_CODE_RE = re.compile(r"(?<!`)(`+)(?!`)(.*?)(?<!`)\1(?!`)", re.DOTALL)
+HEADING_RE = re.compile(r"^ {0,3}#{1,6}[ \t]+(.+?)\s*$", re.MULTILINE)
+EXPLICIT_ANCHOR_RE = re.compile(
+    r"<(?:a|[hH][1-6])\b[^>]*\b(?:id|name)=[\"']([^\"']+)[\"']", re.I
+)
+
+
+def mask_text(text: str) -> str:
+    """Keep newlines and offsets while hiding non-prose examples."""
+    return "".join("\n" if char == "\n" else " " for char in text)
+
+
+def visible_markdown(text: str, *, mask_inline: bool = True) -> tuple[str, list[int]]:
+    """Mask top-level fences; report unclosed opener line numbers.
+
+    A closer must have the same character and at least the opener's length.
+    Backticks inside tilde fences, or shorter markers, are ordinary content.
+    """
+    visible: list[str] = []
+    opened: tuple[str, int, int] | None = None
+    for number, line in enumerate(text.splitlines(keepends=True), 1):
+        marker = FENCE_RE.match(line.rstrip("\r\n"))
+        if opened is not None:
+            if (marker and marker[1][0] == opened[0]
+                    and len(marker[1]) >= opened[1] and not marker[2].strip()):
+                opened = None
+            visible.append(mask_text(line))
+        elif marker and not (marker[1][0] == "`" and "`" in marker[2]):
+            opened = (marker[1][0], len(marker[1]), number)
+            visible.append(mask_text(line))
+        else:
+            visible.append(line)
+    result = "".join(visible)
+    # Complete HTML comments in prose do not supply navigation or headings.
+    result = re.sub(r"<!--.*?-->", lambda m: mask_text(m[0]), result, flags=re.DOTALL)
+    if mask_inline:
+        result = INLINE_CODE_RE.sub(lambda m: mask_text(m[0]), result)
+    return result, [opened[2]] if opened else []
+
+
+def link_targets(text: str) -> list[str]:
+    visible, _ = visible_markdown(text)
+    return MARKDOWN_LINK_RE.findall(visible)
+
+
+def heading_anchors(text: str) -> set[str]:
+    """IDs for ordinary ATX headings, duplicate suffixes and explicit anchors.
+
+    This covers the repo's current heading syntax; complex HTML/Setext and
+    renderer-specific extensions are not presented as fully validated.
+    """
+    visible, _ = visible_markdown(text, mask_inline=False)
+    prose, _ = visible_markdown(text)
+    anchors: set[str] = set()
+    generated: set[str] = set()
+    for match in HEADING_RE.finditer(visible):
+        if not HEADING_RE.match(prose, match.start()):
+            continue
+        title = re.sub(r"[ \t]+#+[ \t]*$", "", match[1])
+        title = re.sub(r"!?\[([^\]]*)\]\([^)]*\)", r"\1", title)
+        title = re.sub(r"<[^>]+>", "", title)
+        title = html.unescape(title).replace("`", "").replace("*", "").replace("~", "")
+        title = re.sub(r"(?<!\w)_([^_\n]+)_(?!\w)", r"\1", title)
+        slug = re.sub(r"[^\w -]", "", title.lower()).replace(" ", "-")
+        candidate, suffix = slug, 0
+        while candidate in generated:
+            suffix += 1
+            candidate = f"{slug}-{suffix}"
+        generated.add(candidate)
+    anchors.update(generated)
+    anchors.update(EXPLICIT_ANCHOR_RE.findall(prose))
+    return anchors
 
 
 def markdown_files() -> list[Path]:
@@ -79,28 +159,16 @@ def markdown_files() -> list[Path]:
 
 
 def normalize_link_target(raw: str) -> str:
+    """Remove destination wrappers without discarding fragment identity."""
     target = raw.strip()
     if target.startswith("<") and target.endswith(">"):
-        target = target[1:-1].strip()
-
-    # Markdown permits an optional quoted title after the destination.
-    for delimiter in (' "', " '"):
-        if delimiter in target:
-            target = target.split(delimiter, 1)[0].strip()
-            break
-
-    target = target.split("#", 1)[0].split("?", 1)[0]
-    return unquote(target)
+        target = target[1:-1]
+    return re.sub(r"\\([\\()\[\] ])", r"\1", target)
 
 
-def is_external_or_anchor(target: str) -> bool:
-    lowered = target.lower()
-    return (
-        not target
-        or target.startswith("#")
-        or lowered.startswith(("http://", "https://", "mailto:", "tel:", "data:"))
-        or target.startswith("//")
-    )
+def is_external(target: str) -> bool:
+    # External schemes are not fetched by this offline validator.
+    return bool(re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", target)) or target.startswith("//")
 
 
 def validate_required_files(errors: list[str]) -> None:
@@ -111,26 +179,33 @@ def validate_required_files(errors: list[str]) -> None:
 
 def validate_markdown_links(errors: list[str]) -> None:
     root = ROOT.resolve()
+    anchor_cache: dict[Path, set[str]] = {}
     for path in markdown_files():
-        text = path.read_text(encoding="utf-8")
-        targets = MARKDOWN_LINK_RE.findall(text) + IMAGE_LINK_RE.findall(text)
-        for raw in targets:
+        for raw in link_targets(path.read_text(encoding="utf-8")):
             target = normalize_link_target(raw)
-            if is_external_or_anchor(target):
+            if is_external(target):
                 continue
-            # Skip explicit templates; they are examples, not file links.
+            # Templates belong in code examples, not live navigation links.
             if any(marker in target for marker in ("${", "{{", "<owner>", "<repo>")):
+                errors.append(f"unresolved link template: {path.relative_to(ROOT)} -> {raw}")
                 continue
-            resolved = (path.parent / target).resolve()
+            location, _, fragment = target.partition("#")
+            location = unquote(location.split("?", 1)[0])
+            fragment = unquote(fragment)
+            resolved = (path.parent / location).resolve() if location else path.resolve()
             try:
                 resolved.relative_to(root)
             except ValueError:
-                errors.append(
-                    f"local link escapes repository: {path.relative_to(ROOT)} -> {raw}"
-                )
+                errors.append(f"local link escapes repository: {path.relative_to(ROOT)} -> {raw}")
                 continue
             if not resolved.exists():
                 errors.append(f"broken local link: {path.relative_to(ROOT)} -> {raw}")
+                continue
+            if fragment and resolved.is_file() and resolved.suffix.lower() == ".md":
+                if resolved not in anchor_cache:
+                    anchor_cache[resolved] = heading_anchors(resolved.read_text(encoding="utf-8"))
+                if fragment not in anchor_cache[resolved]:
+                    errors.append(f"broken local anchor: {path.relative_to(ROOT)} -> {raw}")
 
 
 def parse_front_matter(text: str) -> dict[str, str]:
@@ -170,7 +245,8 @@ def validate_invariant_ids(errors: list[str]) -> None:
     path = ROOT / relative
     if not path.is_file():
         return
-    ids = INVARIANT_RE.findall(path.read_text(encoding="utf-8"))
+    visible, _ = visible_markdown(path.read_text(encoding="utf-8"))
+    ids = INVARIANT_RE.findall(visible)
     seen: set[str] = set()
     for invariant_id in ids:
         if invariant_id in seen:
@@ -195,6 +271,7 @@ def validate_invariant_ids(errors: list[str]) -> None:
         "I-91",
         "I-92",
         "I-93",
+        "I-94",
     }
     missing = sorted(required.difference(seen))
     if missing:
@@ -206,9 +283,10 @@ def validate_navigation(errors: list[str]) -> None:
     path = ROOT / relative
     if not path.is_file():
         return
-    text = path.read_text(encoding="utf-8")
+    targets = {normalize_link_target(raw).split("#", 1)[0]
+               for raw in link_targets(path.read_text(encoding="utf-8"))}
     for entry in CANONICAL_NAV_ENTRIES:
-        if entry not in text:
+        if entry not in targets:
             errors.append(f"{relative}: missing canonical navigation entry {entry}")
 
 
@@ -232,8 +310,9 @@ def validate_formatting(errors: list[str]) -> None:
                 errors.append(f"{relative}:{line_number}: trailing whitespace")
             if "\t" in line:
                 errors.append(f"{relative}:{line_number}: tab character")
-        if text.count("```") % 2:
-            errors.append(f"{relative}: unbalanced fenced code blocks")
+        _, unclosed = visible_markdown(text)
+        for line_number in unclosed:
+            errors.append(f"{relative}:{line_number}: unclosed fenced code block")
 
 
 def main() -> int:

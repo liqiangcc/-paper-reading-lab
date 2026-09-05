@@ -142,6 +142,36 @@ Task body 应明确：
 
 不要因为 PR mergeable 就自动认为 acceptance 已通过，也不要声称未运行的 CI 为 PASS。
 
+## Task closure 证据门禁
+
+本节只适用于有界的工程 / 文档 Task，不把 Primary Paper Issue 的 open 状态解释为失败，也不把 Task completed 解释为 Paper done。
+
+关闭前在目标 Issue 的 durable report 记录可追溯链：
+
+```text
+contract / base_sha
+→ candidate_sha + PR
+→ review 结果 + 该 candidate 的检查 / run URL
+→ merge_commit_sha
+→ 合并后该 main SHA 的检查 / run URL
+→ remaining findings 分类
+→ Issue body / state / owner 回读确认
+```
+
+每项 evidence 记录观察对象、结果和可打开的 reference。PR 检查若运行在测试 merge ref，必须说明其与 candidate/base 的关系，不能把旧 head 的成功当作新 head 的验证。主分支后来又变化时，历史成功只绑定当时的 merge SHA，不代表任意新的 main。
+
+合并只是一个阶段。所需 post-merge check 未完成时，状态为 `merged-awaiting-verification`，不能提前写整体 PASS。自动 close 的 Task 若后续必要验证失败，应补 blocker 并重开或建立明确关联的修复 Task。工具不可用时记录 `NOT VERIFIED / BLOCKED`，不得拿旧聊天的成功声明代替检查。
+
+终态同步要求：body 的执行状态与 GitHub 实际 state 一致，`active_owner: none`，完成清单按证据更新，`next_action` 不再指向已执行的旧动作。写入后重新读取，不能只凭写调用成功就假定所有投影已同步。历史 claim / prediction / acceptance / closure comments 保持原样；纠正通过追加 superseding record。
+
+剩余 finding 必须分为 `resolved`、`accepted-limitation` 或 `blocked-follow-up`，附依据及必要的 Task reference。分支清理、Profile 深度覆盖、学习者 Recall 等属于不同验收维度，不能用一个 CI PASS 混为全部闭环。
+
+`review requested`、无 review、无 blocking comment，都不等于独立 reviewer 已批准。自审应标为自审；若 Contract 要求独立验收而证据缺失，必须保留该 gate。
+
+无 ref-delete capability 时不拿 `delete_file` 替代，不加大 token / workflow 权限只为删除分支。残留已合并分支可以作为非阻塞维护限制单独登记。
+
+详见 [repository checks](../validation/repository-checks.md)：离线脚本不验证 GitHub live state、branch protection 或真实 ReadingSession。
+
 ## Issue 不保存什么
 
 不要完整复制：

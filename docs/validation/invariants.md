@@ -491,6 +491,12 @@ Canonical docs = detailed method truth
 
 Agent 不因当前动作成功而自动扩 scope、开始下一 Session、处理下一 Paper 或合并不相关 Task。
 
+### I-94 Task closure 必须有证据且状态一致
+
+有界 Task 的 closure 必须按 [Task closure 证据门禁](../workflows/issue-driven-workflow.md#task-closure-证据门禁) 绑定 candidate、PR、merge commit、必要的合并后检查，以及明确的 review / remaining-finding 状态。
+
+终态 body、GitHub state、owner 与 next_action 必须同步并回读。`merged`、`CI PASS`、`review requested` 分别只证明各自发生过的事件，不自动证明全部方法或学习效果通过。此项需要 GitHub live review，不由离线 Markdown validator 声称完成。
+
 ## 建议的 Validator 分阶段实现
 
 ### Phase 1 — Repository structure

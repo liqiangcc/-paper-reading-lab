@@ -161,7 +161,8 @@ invariants.md
 ## 本地校验
 
 ```bash
+python3 -m unittest discover -s tests -v
 python3 scripts/validate_repository.py
 ```
 
-详细检查项见脚本输出和 [`audits/2026-09-repository-audit.md`](audits/2026-09-repository-audit.md)。
+详细范围与未覆盖项见 [`validation/repository-checks.md`](validation/repository-checks.md)。历史审查见 [`audits/2026-09-repository-audit.md`](audits/2026-09-repository-audit.md)，闭环复核与回归记录见 [`audits/2026-09-05-closure-verification.md`](audits/2026-09-05-closure-verification.md)。
