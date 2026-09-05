@@ -18,7 +18,7 @@ description: 基于 reading-mcp 原文提供一次高质量逐句分析，支持
 1. 确认下一单元在当前授权范围内；边界无法确认或将越界时先停，不先读再改范围。
 2. 调用 `get_text_units`，使用绑定 document、当前 owner/section 和精确 anchor，默认 `requested_kind=sentence`、`coverage_policy=preserve_source`、`direction=forward`、`max_items=1`。
 3. 使用返回的 `TextLocator` 调用 `read_document(document_id, target_locator)` 精确回读，不同时加 `section_id`；核对 identity、范围、完整性。保留 provider 单元，不擅自过滤后再读取第二个。
-4. 按分析协议呈现原文、必要翻译和逐层承接的分析；更新本会话中的已读位置和模型增量。
+4. 按分析协议默认使用 Kafka 首轮增量骨架呈现：原文 → 必要翻译 → `1. 字面在说什么` → `2. 与前文的关系` → `3. 真正新增了什么` → `4. 当前问题模型如何变化`；只有确有可迁移方法时再写 `5. 思考方法`。关键句完整展开，低信息过渡句允许压缩，但不能漂移成散文式长解说；更新本会话中的已读位置和模型增量。
 5. 本次输出结束，等待用户继续；不附带考试、长 checklist 或新会话提示词。
 
 ## 追问与回看
