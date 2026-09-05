@@ -1,6 +1,6 @@
 # 阅读状态
 
-正常学习只有“读取当前原文并分析”这条主线；不按 Learning → Prediction → Recall → Reconstruction 排流水线。用户追问或回看也不必创建新 Session。
+正常阅读只有“读取当前原文并逐层分析”这条主线。用户追问或回看不创建新 Session；不维护任何训练模式或训练结果对象。
 
 ## 一份状态足够
 
@@ -32,10 +32,8 @@
 
 Source/normalization 变化不自动迁移旧 locator；分析契约切换记录一次旧/新绑定、生效位置与依据。已读位置只增不减。回看只改变视图，不把看过的内容变回未知。
 
-历史 Session 的 completed/abandoned/contamination 保留；本轮阅读结束不意味着论文永久学完，也不要求追加 Recall 或其他验收才能完成。
+历史 Session 的 completed/abandoned/contamination 保留；本轮阅读结束不意味着论文永久学完，不追加作答或验收阶段。
 
-## ReadingSession Learning Artifact
+## 分析摘要
 
-资产是帮助 AI 恢复已读模型、风格和开放问题的简短分析摘要，不是默认考试答案库。旧三单元候选保留其 Source refs、版本、历史证据和限制；正常继续无需再做一次 asset-only 盲恢复。
-
-用户主动要求训练时另行定义小范围和证据语义；不创建默认训练计划。没有学习者作答时不宣称用户掌握或失败。
+摘要只帮助 AI 保持已读模型、分析衔接和开放问题；放在同一状态里即可。旧记录中的 Learning Artifact 只是历史命名，不是必须创建的对象、答案库或新的验收任务。历史固定候选按其原 commit 保留，不为继续阅读重新处理。

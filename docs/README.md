@@ -3,7 +3,7 @@
 ## 日常只读这些
 
 - [AGENTS](../AGENTS.md)：入口与必要边界。
-- [逐句分析协议](learning/source-first-sentence-reading.md)：`source-first-analysis/v1`，分析质量唯一日常标准。
+- [逐句分析协议](learning/source-first-sentence-reading.md)：`source-first-analysis/v2`，分析质量唯一日常标准。
 - [Reading Skill](../.agents/skills/source-first-reading/SKILL.md)：实际操作，不重复方法定义。
 - [阅读状态](learning/reading-sessions.md)：保存/恢复所需的一份记录。
 
@@ -20,13 +20,11 @@
 
 [Bootstrap](workflows/conversation-bootstrap.md)、[领域模型](domain/model.md)、[生命周期](workflows/paper-reading-lifecycle.md)、[架构边界](architecture/boundaries.md) 已收敛为短说明，不再平行维护流程或长 schema。
 
-## 历史资料，日常不加载
+## 历史引用
 
-- [旧 Explanation Profile v0.1](learning/incremental-explanation-profile.md)：冻结内容，供历史绑定使用；不替代新默认协议。
-- [首个 Pilot 计划](pilot/first-pilot.md) 与 [Closure](pilot/first-pilot-closure.md)：保留真实 PASS/PARTIAL/FAIL，不作为继续阅读的待办。
-- [历史仓库审查](audits/2026-09-repository-audit.md) 与 [闭环复核](audits/2026-09-05-closure-verification.md)：已发生的工程证据，不重新运行其当时的 next_action。
+旧 Profile 与 Pilot 已从当前文件树删除，不保留可执行训练入口。旧 Session 需要核对历史时按绑定的 commit + path 获取；例如 [旧 Profile v0.1](https://github.com/liqiangcc/paper-reading-lab/blob/27471ed0b2b99ad9c25c088a55cbbf6ad7c5ee67/docs/learning/incremental-explanation-profile.md)、[Pilot 原记录](https://github.com/liqiangcc/paper-reading-lab/tree/c000a92c71d07026882a4d13d86b98a55ecf27fc/docs/pilot) 与 [分析契约 v1](https://github.com/liqiangcc/paper-reading-lab/blob/c000a92c71d07026882a4d13d86b98a55ecf27fc/docs/learning/source-first-sentence-reading.md)。不把 main 当成旧版本，不执行历史 next_action，不把历史未测或失败改为 PASS。
 
-实时进度、候选和任务状态只查对应 Issue，不写死在导航中。未合并资产候选和其固定证据仍按原 PR/SHA 管理，不在本次精简中重写。
+[历史仓库审查](audits/2026-09-repository-audit.md) 与 [闭环复核](audits/2026-09-05-closure-verification.md) 仅记录已发生的工程事实，不是运行规则。实时状态只查对应 Issue；已被用户目标取消的旧任务和未合并候选不再阻塞阅读。
 
 ## 本地检查
 

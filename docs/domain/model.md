@@ -8,6 +8,6 @@
 
 详细字段只在 [阅读状态](../learning/reading-sessions.md) 定义，不在这里重复 schema。TextLocator / canonical 单元由 reading-mcp 拥有，不重新构造 identity。
 
-操作定位与分析摘要可同记录分区；需要长期复用时才抽出资产。PredictionRecord、TrainingResult、ExportCandidate 等不再是默认对象；旧记录在原 commit 中保留，不作当前必填字段或流程阶段。
+操作定位与分析摘要可同记录分区；需要长期复用时才抽出资产。仅保留这三个对象，不维护训练记录或模式体系；旧记录在原 commit 中保留，不作为当前字段或流程阶段。
 
 一个 Session 结束不等于论文永久学完。旧 Session、Profile 和 Source identity 不因本次简化被静默改写。
