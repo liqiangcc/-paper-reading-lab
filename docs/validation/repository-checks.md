@@ -31,7 +31,7 @@ CI 在 PR 与 main push 上运行相同命令。第三方 Actions 保持固定 c
 
 这不是完整 CommonMark / GitHub Markdown renderer。reference-style links、Setext headings、复杂嵌套列表 / blockquote 中的 fenced code、任意 HTML 和扩展标题属性，未作为完整兼容性承诺。新增此类用于正式导航的语法前，应补相应用例与实现，或采用已支持的简单 inline link / ATX heading。非 Markdown 文件的 fragment（例如 PDF 页码）不解释；外部 URL 不联网验证。
 
-脚本不校验 workflow YAML 的完整语义、远端分支保护、GitHub Issue 状态、CI 运行真实性、真实 Source identity、no-lookahead 执行历史、解释质量、Profile 全部深度覆盖或 Recall 效果。发现 live-state 冲突必须依据 [Task closure gate](../workflows/issue-driven-workflow.md#task-closure-证据门禁) 人工 / Agent 复核。
+脚本不校验 workflow YAML 的完整语义、远端分支保护、GitHub Issue 状态、CI 运行真实性、真实 Source identity、no-lookahead 执行历史、解释质量或用户能力变化。发现 live-state 冲突必须依据 [Task closure gate](../workflows/issue-driven-workflow.md#task-closure-证据门禁) 人工 / Agent 复核。
 
 删除整个 workflow 后未必有该 workflow 继续执行；必需文件检查不是平台强制保护的替代品。
 
