@@ -168,6 +168,20 @@ class RepositoryChecks(unittest.TestCase):
         self.write("docs/validation/invariants.md", "### I-01 Real\n### I-01 Duplicate\n")
         self.assertTrue(any("duplicate" in e for e in self.check("validate_invariant_ids")))
 
+    def test_daily_contract_is_required(self) -> None:
+        for path in validator.REQUIRED_FILES:
+            self.write(path, "placeholder\n")
+        target = "docs/learning/source-first-sentence-reading.md"
+        (self.root / target).unlink()
+        self.assertIn(f"missing required file: {target}", self.check("validate_required_files"))
+
+    def test_legacy_experiments_are_not_daily_bootstrap_requirements(self) -> None:
+        for path in ("docs/pilot/first-pilot.md", "docs/learning/incremental-explanation-profile.md",
+                     "docs/workflows/conversation-bootstrap.md", "docs/domain/model.md"):
+            with self.subTest(path=path):
+                self.assertNotIn(path, validator.REQUIRED_FILES)
+                self.assertNotIn(path.removeprefix("docs/"), validator.CANONICAL_NAV_ENTRIES)
+
     def test_repository_and_mutation_exit_codes(self) -> None:
         shutil.copytree(REPO, self.root, dirs_exist_ok=True, ignore=shutil.ignore_patterns(".git", "__pycache__"))
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):

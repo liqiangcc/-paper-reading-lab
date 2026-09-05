@@ -17,12 +17,12 @@ CI 在 PR 与 main push 上运行相同命令。第三方 Actions 保持固定 c
 
 | 检查 | 实际边界 |
 | --- | --- |
-| 必需文件 | 治理文档，以及 validator、回归测试和 CI workflow 的文件存在性 |
+| 必需文件 | 当前日常核心规则，以及 validator、回归测试和 CI workflow 的文件存在性；历史 Pilot/旧 Profile 不作为默认启动依赖 |
 | 本地链接与图片 | 普通 inline Markdown destination 的存在性、仓库路径越界；支持 URL 编码、尖括号包裹路径、可选引号标题及一层路径圆括号 |
 | 代码区 | 忽略顶层 backtick / tilde fenced code 和匹配 backtick inline code 中的示例链接 |
 | 围栏闭合 | opener / closer 字符相同，closer 长度不少于 opener，closer 后只能有空白 |
 | 本地标题锚点 | 本仓库普通 ATX heading、Unicode 文本、重复标题编号及显式 id/name anchor；引用其他文件与同文件均检查 |
-| 导航 | canonical 文档必须有真实 inline link，只出现路径字符串不算导航 |
+| 导航 | 核心日常规则必须有真实 inline link，只出现路径字符串不算导航；不强制把历史实验列为必读 |
 | Invariant | 正文 invariant ID 唯一且关键 ID 存在；代码示例不冒充正式定义 |
 | Skill | 检查现有简单 front matter 的 name 与非空 description；不是完整 YAML Schema 验证 |
 | 格式 | Markdown 尾随空格、tab、未闭合顶层 fence；少量已知过期 README 字面值 |
@@ -40,3 +40,5 @@ CI 在 PR 与 main push 上运行相同命令。第三方 Actions 保持固定 c
 修复 validator 时先保留最小复现，并让负向 fixture 明确要求 FAIL、正向 fixture 明确要求 PASS。不要只验证“仓库当前能过”：错误检查器也可能在健康仓库上通过。
 
 可验证的闭环是：已确认的错误输入 → 原检查错误结果 → 修复 → 相同用例获得预期结果 → PR CI → merge SHA 的 main CI → durable report。fixture 通过仅证明覆盖的分支，不升级为“仓库永远无问题”。
+
+日常语义质量只由实际分析与具体问题审查，不新增评分流水线。原有 Markdown 正负向回归保留；精简不移除身份、范围或原文准确性要求。
