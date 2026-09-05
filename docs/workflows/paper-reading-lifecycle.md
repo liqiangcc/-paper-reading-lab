@@ -10,4 +10,4 @@ Source stale、范围不明或身份冲突时停止当前读取并保存事实�
 
 Source/分析契约切换须显式记录，不自动重写旧引用。新 Session 使用当前分析契约，旧 Session 按授权切换；Profile stable 不是正常阅读准入条件。
 
-不要求阅读之后必须进入 Prediction、Recall、Reconstruction、Transfer 或 export。只有用户明确要求才另行安排。
+阅读之后没有训练、测验或额外通关阶段。

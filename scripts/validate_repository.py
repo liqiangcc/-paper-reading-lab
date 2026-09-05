@@ -245,7 +245,6 @@ def validate_invariant_ids(errors: list[str]) -> None:
         "I-15",
         "I-21",
         "I-28",
-        "I-30",
         "I-40",
         "I-44",
         "I-49",
