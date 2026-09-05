@@ -247,6 +247,8 @@ remaining gate
 
 不要把“PR mergeable”自动解释为已通过 review，也不要声称未运行的 CI 为 PASS。
 
+Task 完成时执行 [Task closure 证据门禁](issue-driven-workflow.md#task-closure-证据门禁)：核对 candidate、merge、main CI 和 Issue body / state / owner；历史 CLOSURE 不能替代当前证据复核。
+
 ## Thin-entry acceptance
 
 治理成功的标准：fresh conversation 仅收到：

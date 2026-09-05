@@ -165,9 +165,10 @@ Before changing canonical docs:
 - check for overlapping open PRs;
 - preserve historical Session facts;
 - avoid writing transient “current task” claims into stable docs;
-- run `python3 scripts/validate_repository.py` when available;
+- run `python3 -m unittest discover -s tests -v` and `python3 scripts/validate_repository.py` when available;
 - record exact Candidate SHA and actual evidence;
-- do not claim checks that were not run.
+- do not claim checks that were not run;
+- before Task closure follow [the closure evidence gate](docs/workflows/issue-driven-workflow.md#task-closure-证据门禁), then re-read body/state/owner.
 
 Repository governance stays layered:
 
